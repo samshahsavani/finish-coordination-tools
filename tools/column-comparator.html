@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Column Comparator — Finish Tools</title>
+    <meta name="description"
+        content="Compare column pairs against a rules-based lookup table to validate RDS-to-RPS transitions.">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #fafafa;
+            --bg-card: #ffffff;
+            --bg-hover: #f5f5f5;
+            --border: #e5e5e5;
+            --border-strong: #d4d4d4;
+            --text-primary: #0a0a0a;
+            --text-secondary: #525252;
+            --text-muted: #a3a3a3;
+            --accent: #000000;
+            --accent-sub: #2563eb;
+            --accent-sub-light: rgba(37, 99, 235, 0.08);
+            --accent-success: #16a34a;
+            --accent-success-light: rgba(22, 163, 74, 0.06);
+            --accent-danger: #dc2626;
+            --accent-danger-light: rgba(220, 38, 38, 0.06);
+            --accent-warn: #ca8a04;
+            --accent-warn-light: rgba(202, 138, 4, 0.08);
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition-fast: 0.12s ease;
+            --transition-normal: 0.2s ease;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app-container { max-width: 1200px; margin: 0 auto; padding: 48px 40px; }
+
+        .app-header {
+            margin-bottom: 48px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 32px;
+        }
+
+        .app-header .brand {
+            font-size: 10px; font-weight: 700; letter-spacing: 4px;
+            text-transform: uppercase; color: var(--text-primary); margin-bottom: 16px;
+        }
+
+        .app-header h1 {
+            font-size: 28px; font-weight: 300; letter-spacing: -0.5px;
+            color: var(--text-primary); margin-bottom: 6px;
+        }
+
+        .app-header .subtitle { font-size: 14px; color: var(--text-muted); font-weight: 400; }
+
+        /* STAGE INDICATOR */
+        .stage-indicator { display: flex; align-items: center; gap: 0; margin-bottom: 40px; }
+
+        .stage-dot {
+            width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; color: var(--text-muted);
+            transition: all var(--transition-normal);
+        }
+
+        .stage-dot.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+        .stage-dot.done { border-color: var(--accent-success); background: var(--accent-success); color: #fff; }
+
+        .stage-conn {
+            width: 40px; height: 2px; background: var(--border);
+            transition: background var(--transition-normal);
+        }
+
+        .stage-conn.done { background: var(--accent-success); }
+
+        .stage-label {
+            font-size: 12px; font-weight: 500; color: var(--text-muted);
+            margin-left: 8px; margin-right: 16px;
+        }
+
+        /* STAGES */
+        .stage { display: none; animation: fadeIn 0.3s ease forwards; }
+        .stage.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* UPLOAD */
+        .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        .drop-zone {
+            border: 2px dashed var(--border); border-radius: var(--radius-lg);
+            padding: 48px 32px; text-align: center; transition: all var(--transition-normal);
+            cursor: pointer; position: relative;
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent-sub); background: var(--accent-sub-light);
+        }
+
+        .drop-zone.loaded {
+            border-color: var(--accent-success); border-style: solid;
+            background: var(--accent-success-light);
+        }
+
+        .drop-zone .upload-icon {
+            width: 48px; height: 48px; border: 1.5px solid var(--border);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 16px; font-size: 18px; color: var(--text-muted);
+        }
+
+        .drop-zone .dz-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .drop-zone .dz-hint { font-size: 12px; color: var(--text-muted); }
+        .drop-zone .dz-desc {
+            font-size: 11px; color: var(--text-muted); margin-top: 10px;
+            line-height: 1.5; max-width: 260px; margin-left: auto; margin-right: auto;
+        }
+        .drop-zone .dz-file { font-size: 12px; font-weight: 600; color: var(--accent-success); margin-top: 8px; }
+
+        .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+        /* FILE INFO */
+        .file-info {
+            display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+            background: var(--accent-success-light); border: 1px solid rgba(22, 163, 74, 0.15);
+            border-radius: var(--radius-md); margin-bottom: 20px; font-size: 13px;
+        }
+
+        .file-info .fi-icon { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-success); flex-shrink: 0; }
+        .file-info .name { font-weight: 600; color: var(--text-primary); }
+        .file-info .meta { color: var(--text-muted); margin-left: auto; font-size: 12px; }
+
+        /* SHEET SELECTOR */
+        .sheet-selector {
+            border: 1px solid var(--border); border-radius: var(--radius-md);
+            padding: 28px; margin-bottom: 20px;
+        }
+
+        .sheet-selector h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .sheet-selector .hint { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+
+        .sheet-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+        .chip {
+            padding: 6px 14px; border-radius: 100px; font-size: 12px; font-weight: 500;
+            cursor: pointer; border: 1px solid var(--border); background: var(--bg-primary);
+            color: var(--text-secondary); transition: all var(--transition-fast); user-select: none;
+        }
+
+        .chip:hover { border-color: var(--border-strong); color: var(--text-primary); background: var(--bg-secondary); }
+        .chip.selected { background: var(--accent); border-color: var(--accent); color: white; }
+
+        /* BUTTONS */
+        .btn-row { display: flex; gap: 12px; margin-top: 24px; }
+
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px; padding: 10px 24px;
+            border-radius: var(--radius-md); font-family: inherit; font-size: 13px;
+            font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+            background: var(--bg-primary); color: var(--text-primary); transition: all var(--transition-fast);
+        }
+
+        .btn:hover { border-color: var(--border-strong); background: var(--bg-hover); }
+
+        .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .btn-primary:hover { opacity: 0.85; }
+        .btn-primary:disabled { opacity: 0.25; cursor: not-allowed; }
+
+        .btn-secondary { background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--border-strong); background: var(--bg-hover); color: var(--text-primary); }
+
+        .btn-sm { padding: 6px 14px; font-size: 11px; }
+
+        .btn-danger { background: var(--bg-primary); color: var(--accent-danger); border: 1px solid rgba(220,38,38,0.3); }
+        .btn-danger:hover { background: var(--accent-danger-light); border-color: var(--accent-danger); }
+
+        /* ============================================
+           STAGE 2: COLUMN PAIRS
+        ============================================ */
+        .section-intro { margin-bottom: 24px; }
+        .section-intro h2 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+        .section-intro p { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+
+        .pair-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+
+        .pair-row {
+            display: flex; align-items: center; gap: 10px; padding: 14px 20px;
+            border: 1px solid var(--border); border-radius: var(--radius-md);
+            background: var(--bg-primary); transition: border-color var(--transition-fast);
+        }
+
+        .pair-row:hover { border-color: var(--border-strong); }
+
+        .pair-num {
+            font-size: 11px; font-weight: 700; color: var(--text-muted);
+            width: 24px; text-align: center; flex-shrink: 0;
+        }
+
+        .pair-row select {
+            flex: 1; padding: 8px 12px; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); font-family: inherit; font-size: 12px;
+            color: var(--text-primary); background: white; cursor: pointer;
+            transition: border-color var(--transition-fast);
+        }
+
+        .pair-row select:focus { outline: none; border-color: var(--accent-sub); }
+
+        .pair-arrow { font-size: 14px; color: var(--text-muted); flex-shrink: 0; }
+
+        .pair-remove {
+            width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);
+            background: var(--bg-primary); color: var(--text-muted); cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 14px;
+            transition: all var(--transition-fast); flex-shrink: 0;
+        }
+
+        .pair-remove:hover { background: var(--accent-danger-light); border-color: var(--accent-danger); color: var(--accent-danger); }
+
+        .rules-info {
+            display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+            background: var(--accent-sub-light); border: 1px solid rgba(37, 99, 235, 0.15);
+            border-radius: var(--radius-md); margin-bottom: 20px; font-size: 12px; color: var(--text-secondary);
+        }
+
+        .rules-info strong { color: var(--accent-sub); }
+
+        .label-config {
+            border: 1px solid var(--border); border-radius: var(--radius-md);
+            padding: 20px 24px; margin-bottom: 20px;
+        }
+
+        .label-config h3 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+        .label-config .hint { font-size: 11px; color: var(--text-muted); margin-bottom: 14px; }
+
+        .label-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+        .label-row:last-child { margin-bottom: 0; }
+
+        .label-dot {
+            width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+        }
+
+        .label-dot.dot-true { background: var(--accent-success); }
+        .label-dot.dot-false { background: var(--accent-danger); }
+        .label-dot.dot-norule { background: var(--accent-warn); }
+
+        .label-desc {
+            font-size: 12px; color: var(--text-muted); width: 120px; flex-shrink: 0;
+        }
+
+        .label-input {
+            flex: 1; max-width: 200px; padding: 6px 12px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            font-family: inherit; font-size: 12px; font-weight: 600;
+            color: var(--text-primary); transition: border-color var(--transition-fast);
+        }
+
+        .label-input:focus { outline: none; border-color: var(--accent-sub); }
+
+        /* ============================================
+           STAGE 3: RESULTS REVIEW
+        ============================================ */
+        .results-summary {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 16px; margin-bottom: 28px;
+        }
+
+        .result-stat-card {
+            border: 1px solid var(--border); border-radius: var(--radius-md);
+            padding: 20px; text-align: center;
+        }
+
+        .result-stat-card .rs-num { font-size: 32px; font-weight: 700; }
+        .result-stat-card .rs-num.true-color { color: var(--accent-success); }
+        .result-stat-card .rs-num.false-color { color: var(--accent-danger); }
+        .result-stat-card .rs-num.norule-color { color: var(--accent-warn); }
+        .result-stat-card .rs-num.total-color { color: var(--accent-sub); }
+
+        .result-stat-card .rs-label {
+            font-size: 10px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 1px; color: var(--text-muted); margin-top: 4px;
+        }
+
+        .pair-breakdown {
+            border: 1px solid var(--border); border-radius: var(--radius-md);
+            margin-bottom: 24px; overflow: hidden;
+        }
+
+        .pair-breakdown-header {
+            padding: 14px 20px; background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600;
+        }
+
+        .pair-breakdown-row {
+            display: flex; align-items: center; gap: 12px; padding: 10px 20px;
+            border-bottom: 1px solid var(--border); font-size: 12px;
+        }
+
+        .pair-breakdown-row:last-child { border-bottom: none; }
+
+        .pair-breakdown-row .pb-label { flex: 1; color: var(--text-secondary); font-weight: 500; }
+
+        .pb-badge {
+            display: inline-flex; padding: 2px 10px; border-radius: 100px;
+            font-size: 11px; font-weight: 700;
+        }
+
+        .pb-badge.true-bg { background: var(--accent-success-light); color: var(--accent-success); border: 1px solid rgba(22,163,74,0.15); }
+        .pb-badge.false-bg { background: var(--accent-danger-light); color: var(--accent-danger); border: 1px solid rgba(220,38,38,0.15); }
+        .pb-badge.norule-bg { background: var(--accent-warn-light); color: var(--accent-warn); border: 1px solid rgba(202,138,4,0.15); }
+
+        /* PREVIEW TABLE */
+        .preview-table-wrap {
+            border: 1px solid var(--border); border-radius: var(--radius-md);
+            overflow: hidden; margin-bottom: 24px;
+        }
+
+        .preview-table-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 20px; background: var(--bg-secondary); border-bottom: 1px solid var(--border);
+        }
+
+        .preview-table-header h3 { font-size: 13px; font-weight: 600; }
+        .preview-table-header .pt-hint { font-size: 11px; color: var(--text-muted); }
+
+        .preview-scroll { max-height: 480px; overflow: auto; }
+
+        .preview-scroll table { width: 100%; border-collapse: collapse; font-size: 11px; }
+
+        .preview-scroll th {
+            position: sticky; top: 0; padding: 8px 12px; text-align: left;
+            font-weight: 700; font-size: 10px; text-transform: uppercase;
+            letter-spacing: 0.5px; color: var(--text-muted); background: #fafafa;
+            border-bottom: 1px solid var(--border); box-shadow: 0 1px 0 var(--border);
+            white-space: nowrap; z-index: 2;
+        }
+
+        .preview-scroll th.result-col { color: var(--accent-sub); background: #e8f0fe; }
+
+        .preview-scroll td {
+            padding: 7px 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border);
+            white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .preview-scroll td.cell-true { color: var(--accent-success); font-weight: 700; background: var(--accent-success-light); }
+        .preview-scroll td.cell-false { color: var(--accent-danger); font-weight: 700; background: var(--accent-danger-light); }
+        .preview-scroll td.cell-norule { color: var(--accent-warn); font-weight: 700; background: var(--accent-warn-light); }
+
+        .preview-scroll tr:hover td { background: var(--bg-hover); }
+        .preview-scroll tr:hover td.cell-true { background: rgba(22,163,74,0.1); }
+        .preview-scroll tr:hover td.cell-false { background: rgba(220,38,38,0.1); }
+        .preview-scroll tr:hover td.cell-norule { background: rgba(202,138,4,0.12); }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+        @media (max-width: 768px) {
+            .app-container { padding: 24px 16px; }
+            .app-header h1 { font-size: 22px; }
+            .upload-grid { grid-template-columns: 1fr; }
+            .results-summary { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="brand">Finish Tools</div>
+            <h1>Column Comparator</h1>
+            <p class="subtitle">Compare column pairs against a rules-based lookup table to validate data transitions</p>
+        </header>
+
+        <div class="stage-indicator">
+            <div class="stage-dot active" id="dot-1">1</div>
+            <span class="stage-label">Upload</span>
+            <div class="stage-conn" id="conn-1"></div>
+            <div class="stage-dot" id="dot-2">2</div>
+            <span class="stage-label">Configure</span>
+            <div class="stage-conn" id="conn-2"></div>
+            <div class="stage-dot" id="dot-3">3</div>
+            <span class="stage-label">Review</span>
+        </div>
+
+        <!-- STAGE 1: UPLOAD -->
+        <section class="stage active" id="stage-upload">
+            <div class="upload-grid">
+                <div class="drop-zone" id="dropMain">
+                    <div class="upload-icon">&#8593;</div>
+                    <div class="dz-title">Main Data File</div>
+                    <div class="dz-hint">The Excel with columns to compare</div>
+                    <div class="dz-desc">Upload the room data sheet containing the column pairs you want to validate</div>
+                    <div class="dz-file" id="mainFileName"></div>
+                    <input type="file" accept=".xlsx,.xls" id="mainFileInput">
+                </div>
+                <div class="drop-zone" id="dropRules">
+                    <div class="upload-icon">&#8593;</div>
+                    <div class="dz-title">Rules File</div>
+                    <div class="dz-hint">The Excel with the lookup mapping</div>
+                    <div class="dz-desc">Two-column sheet: Column A = source codes, Column B = expected mapped values</div>
+                    <div class="dz-file" id="rulesFileName"></div>
+                    <input type="file" accept=".xlsx,.xls" id="rulesFileInput">
+                </div>
+            </div>
+
+            <div id="sheetSelectArea" style="display:none; margin-top: 24px;">
+                <div id="mainSheetSelect" style="display:none;">
+                    <div class="sheet-selector">
+                        <h3>Main File — Select Sheet</h3>
+                        <p class="hint">Choose the sheet containing your data columns</p>
+                        <div class="sheet-chips" id="mainSheetChips"></div>
+                    </div>
+                </div>
+                <div id="rulesSheetSelect" style="display:none;">
+                    <div class="sheet-selector">
+                        <h3>Rules File — Select Sheet</h3>
+                        <p class="hint">Choose the sheet with the lookup mapping</p>
+                        <div class="sheet-chips" id="rulesSheetChips"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" id="btnReset1">Reset</button>
+                <button class="btn btn-primary" id="btnToPairs" disabled>Configure Pairs →</button>
+            </div>
+        </section>
+
+        <!-- STAGE 2: CONFIGURE PAIRS -->
+        <section class="stage" id="stage-pairs">
+            <div class="file-info">
+                <span class="fi-icon"></span>
+                <span class="name" id="fileName2"></span>
+                <span class="meta" id="fileMeta2"></span>
+            </div>
+
+            <div class="rules-info">
+                <strong id="rulesCount">0</strong>&nbsp;rules loaded from the lookup table
+            </div>
+
+            <div class="label-config">
+                <h3>Customize Labels</h3>
+                <p class="hint">Rename what appears in the Comparison column (e.g., "Similar" instead of "TRUE")</p>
+                <div class="label-row">
+                    <span class="label-dot dot-true"></span>
+                    <span class="label-desc">Match label:</span>
+                    <input type="text" class="label-input" id="labelTrue" value="TRUE">
+                </div>
+                <div class="label-row">
+                    <span class="label-dot dot-false"></span>
+                    <span class="label-desc">Mismatch label:</span>
+                    <input type="text" class="label-input" id="labelFalse" value="FALSE">
+                </div>
+                <div class="label-row">
+                    <span class="label-dot dot-norule"></span>
+                    <span class="label-desc">No rule label:</span>
+                    <input type="text" class="label-input" id="labelNoRule" value="NO RULE">
+                </div>
+            </div>
+
+            <div class="section-intro">
+                <h2>Configure Column Pairs</h2>
+                <p>Select pairs of columns to compare. The left column (source) will be looked up in the rules table, and the result compared against the right column (target).</p>
+            </div>
+
+            <div class="pair-list" id="pairList"></div>
+
+            <div style="margin-bottom: 20px;">
+                <button class="btn btn-sm" id="btnAddPair">+ Add Pair</button>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" id="btnBack2">← Back</button>
+                <button class="btn btn-primary" id="btnRunCompare">Run Comparison →</button>
+            </div>
+        </section>
+
+        <!-- STAGE 3: REVIEW -->
+        <section class="stage" id="stage-review">
+            <div class="file-info">
+                <span class="fi-icon"></span>
+                <span class="name" id="fileName3"></span>
+                <span class="meta" id="fileMeta3"></span>
+            </div>
+
+            <div class="results-summary">
+                <div class="result-stat-card">
+                    <div class="rs-num total-color" id="statTotal">0</div>
+                    <div class="rs-label">Total Checks</div>
+                </div>
+                <div class="result-stat-card">
+                    <div class="rs-num true-color" id="statTrue">0</div>
+                    <div class="rs-label">True</div>
+                </div>
+                <div class="result-stat-card">
+                    <div class="rs-num false-color" id="statFalse">0</div>
+                    <div class="rs-label">False</div>
+                </div>
+                <div class="result-stat-card">
+                    <div class="rs-num norule-color" id="statNoRule">0</div>
+                    <div class="rs-label">No Rule</div>
+                </div>
+            </div>
+
+            <div class="pair-breakdown" id="pairBreakdown">
+                <div class="pair-breakdown-header">Breakdown by Pair</div>
+            </div>
+
+            <div class="preview-table-wrap">
+                <div class="preview-table-header">
+                    <h3>Preview</h3>
+                    <span class="pt-hint">Showing first 100 rows with FALSE or NO RULE values</span>
+                </div>
+                <div class="preview-scroll" id="previewScroll"></div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" id="btnBack3">← Back to Configure</button>
+                <button class="btn btn-primary" id="btnDownload">⬇ Download Excel</button>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // =============================================
+        // STATE
+        // =============================================
+        let mainWorkbook = null, rulesWorkbook = null;
+        let mainFileName = '', rulesFileName_val = '';
+        let mainSheet = null, rulesSheet = null;
+        let mainData = [], rulesData = [];
+        let mainHeaders = [];
+        let rulesMap = {}; // { lowerCaseKey: [value1, value2, ...] }
+        let pairs = [];    // [{ srcIdx, tgtIdx }]
+        let comparisonResults = []; // array of arrays (full export data)
+        let LABEL_TRUE = 'TRUE', LABEL_FALSE = 'FALSE', LABEL_NORULE = 'NO RULE';
+
+        const $ = id => document.getElementById(id);
+
+        // =============================================
+        // STAGE NAVIGATION
+        // =============================================
+        function goToStage(num) {
+            document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
+            const stageIds = ['stage-upload', 'stage-pairs', 'stage-review'];
+            document.getElementById(stageIds[num - 1]).classList.add('active');
+
+            for (let i = 1; i <= 3; i++) {
+                const dot = $('dot-' + i);
+                const conn = i < 3 ? $('conn-' + i) : null;
+                dot.classList.remove('active', 'done');
+                if (conn) conn.classList.remove('done');
+                if (i < num) { dot.classList.add('done'); if (conn) conn.classList.add('done'); }
+                else if (i === num) { dot.classList.add('active'); }
+            }
+        }
+
+        // =============================================
+        // STAGE 1: FILE UPLOAD
+        // =============================================
+        function setupDropZone(dropId, inputId, fileNameId, onLoaded) {
+            const dz = $(dropId);
+            const inp = $(inputId);
+            dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+            dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+            dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); handleUpload(e.dataTransfer.files[0], dz, fileNameId, onLoaded); });
+            inp.addEventListener('change', e => { if (e.target.files[0]) handleUpload(e.target.files[0], dz, fileNameId, onLoaded); });
+        }
+
+        function handleUpload(file, dz, fileNameId, onLoaded) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const wb = XLSX.read(e.target.result, { type: 'array' });
+                    dz.classList.add('loaded');
+                    $(fileNameId).textContent = '✓ ' + file.name;
+                    onLoaded(wb, file.name);
+                } catch (err) {
+                    alert('Error reading file: ' + err.message + '\n\nPlease ensure this is a valid .xlsx or .xls file.');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        setupDropZone('dropMain', 'mainFileInput', 'mainFileName', (wb, name) => {
+            mainWorkbook = wb;
+            mainFileName = name;
+            showSheetSelectors();
+        });
+
+        setupDropZone('dropRules', 'rulesFileInput', 'rulesFileName', (wb, name) => {
+            rulesWorkbook = wb;
+            rulesFileName_val = name;
+            showSheetSelectors();
+        });
+
+        function showSheetSelectors() {
+            if (!mainWorkbook || !rulesWorkbook) return;
+            $('sheetSelectArea').style.display = 'block';
+
+            // Main sheets
+            if (mainWorkbook.SheetNames.length === 1) {
+                selectMainSheet(mainWorkbook.SheetNames[0]);
+            } else {
+                $('mainSheetSelect').style.display = 'block';
+                const container = $('mainSheetChips');
+                container.innerHTML = '';
+                mainWorkbook.SheetNames.forEach(name => {
+                    const chip = document.createElement('span');
+                    chip.className = 'chip';
+                    chip.textContent = name;
+                    chip.addEventListener('click', () => {
+                        container.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+                        chip.classList.add('selected');
+                        selectMainSheet(name);
+                    });
+                    container.appendChild(chip);
+                });
+            }
+
+            // Rules sheets
+            if (rulesWorkbook.SheetNames.length === 1) {
+                selectRulesSheet(rulesWorkbook.SheetNames[0]);
+            } else {
+                $('rulesSheetSelect').style.display = 'block';
+                const container = $('rulesSheetChips');
+                container.innerHTML = '';
+                rulesWorkbook.SheetNames.forEach(name => {
+                    const chip = document.createElement('span');
+                    chip.className = 'chip';
+                    chip.textContent = name;
+                    chip.addEventListener('click', () => {
+                        container.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+                        chip.classList.add('selected');
+                        selectRulesSheet(name);
+                    });
+                    container.appendChild(chip);
+                });
+            }
+        }
+
+        function selectMainSheet(name) {
+            mainSheet = name;
+            const ws = mainWorkbook.Sheets[name];
+            const ref = ws['!ref'];
+            let expectedRows = 0;
+            if (ref) { const end = ref.split(':')[1]; if (end) { const m = end.match(/\d+/); if (m) expectedRows = parseInt(m[0], 10); } }
+            mainData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            while (mainData.length < expectedRows) mainData.push(new Array(mainData[0] ? mainData[0].length : 0).fill(''));
+            mainHeaders = mainData[0] ? mainData[0].map(h => String(h || '')) : [];
+            checkCanProceed();
+        }
+
+        function selectRulesSheet(name) {
+            rulesSheet = name;
+            const ws = rulesWorkbook.Sheets[name];
+            rulesData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+            // Build rules map from first two columns (skip header row)
+            rulesMap = {};
+            for (let r = 1; r < rulesData.length; r++) {
+                const key = String(rulesData[r][0] || '').trim().toLowerCase();
+                const val = String(rulesData[r][1] || '').trim();
+                if (!key) continue;
+                if (!rulesMap[key]) rulesMap[key] = [];
+                rulesMap[key].push(val.toLowerCase());
+            }
+            checkCanProceed();
+        }
+
+        function checkCanProceed() {
+            $('btnToPairs').disabled = !(mainSheet && rulesSheet && mainHeaders.length > 0 && Object.keys(rulesMap).length > 0);
+        }
+
+        $('btnReset1').addEventListener('click', () => {
+            mainWorkbook = null; rulesWorkbook = null;
+            mainFileName = ''; rulesFileName_val = '';
+            mainSheet = null; rulesSheet = null;
+            mainData = []; rulesData = []; mainHeaders = [];
+            rulesMap = {}; pairs = [];
+
+            $('dropMain').classList.remove('loaded');
+            $('dropRules').classList.remove('loaded');
+            $('mainFileName').textContent = '';
+            $('rulesFileName').textContent = '';
+            $('mainFileInput').value = '';
+            $('rulesFileInput').value = '';
+            $('sheetSelectArea').style.display = 'none';
+            $('mainSheetSelect').style.display = 'none';
+            $('rulesSheetSelect').style.display = 'none';
+            $('btnToPairs').disabled = true;
+        });
+
+        $('btnToPairs').addEventListener('click', () => {
+            setupPairsStage();
+            goToStage(2);
+        });
+
+        // =============================================
+        // STAGE 2: CONFIGURE PAIRS
+        // =============================================
+        function setupPairsStage() {
+            $('fileName2').textContent = mainFileName;
+            $('fileMeta2').textContent = mainSheet;
+            $('rulesCount').textContent = Object.keys(rulesMap).length;
+
+            pairs = [];
+            const container = $('pairList');
+            container.innerHTML = '';
+
+            // Default pairs — only pre-populate if headers are found (case-insensitive)
+            const defaultPairNames = [
+                { src: 'Floor finish RFS', tgt: 'Floor Finish RDS' },
+                { src: 'Base RFS',         tgt: 'Base RDS' },
+                { src: 'Wall finish RFS',  tgt: 'Wall finish RDS' },
+                { src: 'Ceiling Material RFS', tgt: 'Ceiling Material RDS' },
+                { src: 'Ceiling Finish RFS',   tgt: 'Ceiling Finish RDS' }
+            ];
+
+            const lowerHeaders = mainHeaders.map(h => h.toLowerCase());
+
+            const autoPairs = [];
+            for (const dp of defaultPairNames) {
+                const srcIdx = lowerHeaders.indexOf(dp.src.toLowerCase());
+                const tgtIdx = lowerHeaders.indexOf(dp.tgt.toLowerCase());
+                if (srcIdx !== -1 && tgtIdx !== -1) {
+                    autoPairs.push({ srcIdx, tgtIdx });
+                }
+            }
+
+            // Use detected pairs, or 5 empty rows if none found
+            const initialPairs = autoPairs.length > 0 ? autoPairs : Array.from({ length: 5 }, () => ({ srcIdx: -1, tgtIdx: -1 }));
+            initialPairs.forEach(p => addPairRow(p.srcIdx, p.tgtIdx));
+        }
+
+        function addPairRow(srcIdx = -1, tgtIdx = -1) {
+            const idx = pairs.length;
+            pairs.push({ srcIdx, tgtIdx });
+
+            const container = $('pairList');
+            const row = document.createElement('div');
+            row.className = 'pair-row';
+            row.dataset.idx = idx;
+
+            const options = '<option value="-1">— Select column —</option>' +
+                mainHeaders.map((h, i) => h.trim() ? `<option value="${i}"${i === srcIdx ? ' selected' : ''}>${escHtml(h)}</option>` : '').join('');
+
+            const options2 = '<option value="-1">— Select column —</option>' +
+                mainHeaders.map((h, i) => h.trim() ? `<option value="${i}"${i === tgtIdx ? ' selected' : ''}>${escHtml(h)}</option>` : '').join('');
+
+            row.innerHTML = `
+                <span class="pair-num">${idx + 1}</span>
+                <select class="src-select">${options}</select>
+                <span class="pair-arrow">→</span>
+                <select class="tgt-select">${options2}</select>
+                <button class="pair-remove" title="Remove pair">×</button>
+            `;
+
+            row.querySelector('.src-select').addEventListener('change', e => {
+                pairs[idx].srcIdx = parseInt(e.target.value);
+            });
+            row.querySelector('.tgt-select').addEventListener('change', e => {
+                pairs[idx].tgtIdx = parseInt(e.target.value);
+            });
+            row.querySelector('.pair-remove').addEventListener('click', () => {
+                row.remove();
+                pairs[idx] = null; // Mark as deleted
+                renumberPairs();
+            });
+
+            container.appendChild(row);
+        }
+
+        function renumberPairs() {
+            const rows = $('pairList').querySelectorAll('.pair-row');
+            rows.forEach((row, i) => {
+                row.querySelector('.pair-num').textContent = i + 1;
+            });
+        }
+
+        $('btnAddPair').addEventListener('click', () => addPairRow());
+
+        $('btnBack2').addEventListener('click', () => goToStage(1));
+
+        $('btnRunCompare').addEventListener('click', () => {
+            // Validate pairs
+            const activePairs = pairs.filter(p => p && p.srcIdx >= 0 && p.tgtIdx >= 0);
+            if (activePairs.length === 0) {
+                alert('Please configure at least one column pair with both source and target selected.');
+                return;
+            }
+            pairs = activePairs;
+            runComparison();
+            goToStage(3);
+        });
+
+        // =============================================
+        // COMPARISON LOGIC
+        // =============================================
+        function runComparison() {
+            // Read custom labels
+            LABEL_TRUE = ($('labelTrue').value || 'TRUE').trim();
+            LABEL_FALSE = ($('labelFalse').value || 'FALSE').trim();
+            LABEL_NORULE = ($('labelNoRule').value || 'NO RULE').trim();
+
+            let totalChecks = 0, trueCount = 0, falseCount = 0, noRuleCount = 0;
+            const pairStats = pairs.map(() => ({ trueCount: 0, falseCount: 0, noRuleCount: 0 }));
+
+            // Build export data: original rows with result columns inserted
+            // We need to insert result columns AFTER each pair's target column
+            // To avoid index shifting, we process from right to left
+
+            // First, build the result for each row
+            const rowResults = [];
+
+            for (let r = 1; r < mainData.length; r++) {
+                const results = [];
+                for (let p = 0; p < pairs.length; p++) {
+                    const srcVal = String(mainData[r][pairs[p].srcIdx] || '').trim();
+                    const tgtVal = String(mainData[r][pairs[p].tgtIdx] || '').trim();
+
+                    // Both blank → skip
+                    if (!srcVal && !tgtVal) { results.push(''); continue; }
+
+                    // Split by comma
+                    const srcParts = srcVal.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+                    const tgtParts = tgtVal.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+
+                    if (srcParts.length === 0 && tgtParts.length === 0) { results.push(''); continue; }
+
+                    // Look up each source part in rules
+                    let hasNoRule = false;
+                    const mappedValues = [];
+                    for (const part of srcParts) {
+                        if (rulesMap[part]) {
+                            mappedValues.push(...rulesMap[part]);
+                        } else {
+                            hasNoRule = true;
+                        }
+                    }
+
+                    if (hasNoRule) {
+                        results.push(LABEL_NORULE);
+                        noRuleCount++;
+                        pairStats[p].noRuleCount++;
+                    } else {
+                        // Compare: every target value must be found in the set of valid mapped values
+                        // (order doesn't matter, and mapped values can have extras — they're alternatives)
+                        const mappedSet = [...new Set(mappedValues)];
+                        const tgtSet = [...new Set(tgtParts)];
+
+                        const isMatch = tgtSet.length > 0 &&
+                            tgtSet.every(t => mappedSet.includes(t));
+
+                        if (isMatch) {
+                            results.push(LABEL_TRUE);
+                            trueCount++;
+                            pairStats[p].trueCount++;
+                        } else {
+                            results.push(LABEL_FALSE);
+                            falseCount++;
+                            pairStats[p].falseCount++;
+                        }
+                    }
+                    totalChecks++;
+                }
+                rowResults.push(results);
+            }
+
+            // Build export data with result columns inserted
+            // Process right-to-left to keep indices stable
+            const sortedPairIndices = pairs.map((p, i) => i).sort((a, b) => pairs[b].tgtIdx - pairs[a].tgtIdx);
+
+            comparisonResults = mainData.map((row, rIdx) => {
+                const newRow = [...row];
+                return newRow;
+            });
+
+            // Insert result columns (right to left)
+            for (const pi of sortedPairIndices) {
+                const insertAt = pairs[pi].tgtIdx + 1;
+                const srcName = mainHeaders[pairs[pi].srcIdx] || 'Source';
+                const tgtName = mainHeaders[pairs[pi].tgtIdx] || 'Target';
+                const headerLabel = 'Comparison';
+
+                // Header
+                comparisonResults[0].splice(insertAt, 0, headerLabel);
+
+                // Data rows
+                for (let r = 1; r < comparisonResults.length; r++) {
+                    const resultVal = rowResults[r - 1] ? rowResults[r - 1][pi] || '' : '';
+                    comparisonResults[r].splice(insertAt, 0, resultVal);
+                }
+            }
+
+            // Render review stage
+            renderReviewStage(totalChecks, trueCount, falseCount, noRuleCount, pairStats);
+        }
+
+        // =============================================
+        // STAGE 3: REVIEW
+        // =============================================
+        function renderReviewStage(totalChecks, trueCount, falseCount, noRuleCount, pairStats) {
+            $('fileName3').textContent = mainFileName;
+            $('fileMeta3').textContent = mainSheet;
+
+            $('statTotal').textContent = totalChecks;
+            $('statTrue').textContent = trueCount;
+            $('statFalse').textContent = falseCount;
+            $('statNoRule').textContent = noRuleCount;
+
+            // Pair breakdown
+            const bd = $('pairBreakdown');
+            bd.innerHTML = '<div class="pair-breakdown-header">Breakdown by Pair</div>';
+            pairs.forEach((p, i) => {
+                const srcName = mainHeaders[p.srcIdx] || '?';
+                const tgtName = mainHeaders[p.tgtIdx] || '?';
+                const s = pairStats[i];
+                const row = document.createElement('div');
+                row.className = 'pair-breakdown-row';
+                row.innerHTML = `
+                    <span class="pb-label">${escHtml(srcName)} → ${escHtml(tgtName)}</span>
+                    <span class="pb-badge true-bg">${s.trueCount} ${escHtml(LABEL_TRUE)}</span>
+                    <span class="pb-badge false-bg">${s.falseCount} ${escHtml(LABEL_FALSE)}</span>
+                    <span class="pb-badge norule-bg">${s.noRuleCount} ${escHtml(LABEL_NORULE)}</span>
+                `;
+                bd.appendChild(row);
+            });
+
+            // Preview table — show first 100 rows with FALSE or NO RULE
+            renderPreviewTable();
+        }
+
+        function renderPreviewTable() {
+            const container = $('previewScroll');
+            if (comparisonResults.length < 2) {
+                container.innerHTML = '<p style="padding:20px;color:var(--text-muted);">No data to preview.</p>';
+                return;
+            }
+
+            const headers = comparisonResults[0];
+
+            // Find result column indices
+            const resultColIndices = new Set();
+            headers.forEach((h, i) => { if (h === 'Comparison') resultColIndices.add(i); });
+
+            // Get first 100 rows that have at least one FALSE or NO RULE
+            const previewRows = [];
+            for (let i = 1; i < comparisonResults.length && previewRows.length < 100; i++) {
+                const row = comparisonResults[i];
+                const hasFlagged = row.some((cell, ci) => resultColIndices.has(ci) && (cell === LABEL_FALSE || cell === LABEL_NORULE));
+                if (hasFlagged) previewRows.push(row);
+            }
+
+            // Show columns around the first pair's target (or all if few)
+            let colRange = [];
+            if (headers.length <= 12) {
+                colRange = headers.map((_, i) => i);
+            } else {
+                // Show relevant columns around each pair
+                const relevantCols = new Set();
+                for (const p of pairs) {
+                    for (let c = Math.max(0, p.srcIdx - 1); c <= Math.min(headers.length - 1, p.tgtIdx + 2); c++) {
+                        relevantCols.add(c);
+                    }
+                }
+                colRange = [...relevantCols].sort((a, b) => a - b);
+            }
+
+            let html = '<table><thead><tr>';
+            for (const c of colRange) {
+                const isResult = resultColIndices.has(c);
+                html += `<th class="${isResult ? 'result-col' : ''}">${escHtml(String(headers[c] || ''))}</th>`;
+            }
+            html += '</tr></thead><tbody>';
+
+            for (const row of previewRows) {
+                html += '<tr>';
+                for (const c of colRange) {
+                    const val = String(row[c] || '');
+                    const isResult = resultColIndices.has(c);
+                    let cls = '';
+                    if (isResult) {
+                        if (val === LABEL_TRUE) cls = 'cell-true';
+                        else if (val === LABEL_FALSE) cls = 'cell-false';
+                        else if (val === LABEL_NORULE) cls = 'cell-norule';
+                    }
+                    html += `<td class="${cls}">${escHtml(val)}</td>`;
+                }
+                html += '</tr>';
+            }
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        $('btnBack3').addEventListener('click', () => goToStage(2));
+
+        // =============================================
+        // EXPORT
+        // =============================================
+
+        $('btnDownload').addEventListener('click', () => {
+            if (!comparisonResults || comparisonResults.length < 2) return;
+            const data = comparisonResults;
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const cc = data[0].length;
+            const rc = data.length;
+
+            // Find result column indices
+            const resultCols = new Set();
+            data[0].forEach((h, i) => { if (h === 'Comparison') resultCols.add(i); });
+
+            // Style definitions
+            const origHdrStyle = {
+                font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+                fill: { fgColor: { rgb: '333333' } },
+                alignment: { horizontal: 'left', vertical: 'center', wrapText: false },
+                border: { bottom: { style: 'thin', color: { rgb: '000000' } } }
+            };
+            const resultHdrStyle = {
+                font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+                fill: { fgColor: { rgb: '00A99D' } },
+                alignment: { horizontal: 'center', vertical: 'center', wrapText: false },
+                border: { bottom: { style: 'thin', color: { rgb: '000000' } } }
+            };
+            const cellStyle = {
+                alignment: { horizontal: 'left', vertical: 'center' },
+                font: { sz: 11 }
+            };
+            const trueCellStyle = {
+                alignment: { horizontal: 'center', vertical: 'center' },
+                font: { bold: true, sz: 11, color: { rgb: '16A34A' } },
+                fill: { fgColor: { rgb: 'F0FDF4' } }
+            };
+            const falseCellStyle = {
+                alignment: { horizontal: 'center', vertical: 'center' },
+                font: { bold: true, sz: 11, color: { rgb: 'DC2626' } },
+                fill: { fgColor: { rgb: 'FEF2F2' } }
+            };
+            const noRuleCellStyle = {
+                alignment: { horizontal: 'center', vertical: 'center' },
+                font: { bold: true, sz: 11, color: { rgb: 'CA8A04' } },
+                fill: { fgColor: { rgb: 'FEFCE8' } }
+            };
+            const emptyCellStyle = {
+                alignment: { horizontal: 'center', vertical: 'center' },
+                font: { sz: 11 },
+                fill: { fgColor: { rgb: 'F9FAFB' } }
+            };
+
+            // Column widths (p90 sampling)
+            const cols = [];
+            for (let c = 0; c < cc; c++) {
+                const hdrLen = String(data[0][c] || '').length;
+                const lens = [];
+                const step = rc > 500 ? Math.ceil(rc / 500) : 1;
+                for (let r = 1; r < rc; r += step) {
+                    const v = String(data[r][c] || '');
+                    if (v.length) lens.push(v.length);
+                }
+                lens.sort((a, b) => a - b);
+                const p90 = lens.length ? lens[Math.floor(lens.length * 0.9)] : 0;
+                const w = Math.max(hdrLen + 4, p90 + 2);
+                cols.push({ wch: Math.max(8, Math.min(w, 45)) });
+            }
+            ws['!cols'] = cols;
+
+            // Header styles
+            for (let c = 0; c < cc; c++) {
+                const addr = XLSX.utils.encode_cell({ r: 0, c });
+                if (ws[addr]) ws[addr].s = resultCols.has(c) ? resultHdrStyle : origHdrStyle;
+            }
+
+            // Data cell styles
+            for (let r = 1; r < rc; r++) {
+                for (let c = 0; c < cc; c++) {
+                    const addr = XLSX.utils.encode_cell({ r, c });
+                    if (!ws[addr]) {
+                        if (resultCols.has(c)) ws[addr] = { t: 's', v: '', s: emptyCellStyle };
+                        continue;
+                    }
+                    if (resultCols.has(c)) {
+                        const v = String(ws[addr].v || '');
+                        if (v === LABEL_TRUE) ws[addr].s = trueCellStyle;
+                        else if (v === LABEL_FALSE) ws[addr].s = falseCellStyle;
+                        else if (v === LABEL_NORULE) ws[addr].s = noRuleCellStyle;
+                        else ws[addr].s = emptyCellStyle;
+                    } else {
+                        ws[addr].s = cellStyle;
+                    }
+                }
+            }
+
+            // Autofilter + Freeze
+            ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rc - 1, c: cc - 1 } }) };
+            ws['!views'] = [{ state: 'frozen', ySplit: 1 }];
+
+            const newWb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(newWb, ws, mainSheet);
+            const outName = mainFileName.replace(/\.xlsx?$/i, '') + '_Comparison.xlsx';
+            XLSX.writeFile(newWb, outName);
+        });
+
+        // =============================================
+        // UTILITIES
+        // =============================================
+        function escHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+
+</html>

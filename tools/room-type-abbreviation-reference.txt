@@ -1,0 +1,115 @@
+ROOM TYPE ANALYZER — ABBREVIATION REFERENCE
+Public-safe reference version
+Last Updated: March 27, 2026
+
+================================================================================
+OVERVIEW
+================================================================================
+
+The Room Type Analyzer tool reads SDP Reference data from Excel, groups rooms
+by category, and assigns each unique variant an abbreviated code (e.g. EXA-001,
+OFF-002). These codes help the team quickly identify room types during
+coordination.
+
+Codes are generated in two ways:
+  1. Hardcoded abbreviations for known room types (see table below)
+  2. Auto-generated abbreviations for anything not in the list
+
+All abbreviations can be manually edited in the tool's Review stage before
+exporting. The tool flags duplicate abbreviations in real time.
+
+
+================================================================================
+HARDCODED ABBREVIATIONS
+================================================================================
+
+Room Category                              Abbreviation
+─────────────────────────────────────────  ────────────
+Exam Room                                  EXA
+Consult Room                               CONS
+Office                                     OFF
+Staff WR                                   STFWR
+Patient WR                                 PTWR
+Public WR                                  PUBWR
+Universal WR                               UNIVWR
+Washroom                                   WR
+Patient Enhanced WR                        PTEWR
+Public Enhanced WR                         PBEWR
+Staff Facilities                           STFFC
+Staff Lounge                               STFLG
+Medication Room                            MED
+Clean Supply Room                          CLNSP
+Soiled Utility Room                        SLDU
+Housekeeping Room                          HSKP
+Housekeeping Closet                        HSKPC
+Housekeeping Service Room                  HSKSR
+Housekeeping Service Hub                   HSKSH
+Meeting Room                               MTG
+Conference Room                            CONF
+Chute Room                                 CHUTE
+Nourish Room                               NOUR
+Main Waiting Area                          MNWT
+Waiting Area                               WAIT
+Quiet Room                                 QUIET
+Classroom                                  CLASS
+Workstation                                WKST
+Reception                                  RECEP
+PTS w/ 915mm Counter                       PTS9
+PTS w/ 1830mm Counter                      PTS18
+Interdisciplinary Team Room                INTDT
+Interdisc Team                             INTT
+Alcove                                     ALC
+Privacy/Multi-Use Room                     PRIV
+Clerical/Registration (Workstation)        CLRKW
+Clerical/Registration (Enclosed)           CLRKE
+Quiet/Family/Consultation Room             QFCR
+Quiet/Wellness Room                        QWELL
+Infant Feeding                             INFTF
+Breast Pumping Room                        BRPMP
+
+
+================================================================================
+AUTO-GENERATION RULES (NON-HARDCODED ROOMS)
+================================================================================
+
+For any room category not listed above, the tool generates an abbreviation
+using the following steps:
+
+STEP 1 — Strip Filler Words
+    The following words are removed before generating the abbreviation:
+    "room", "area", "the", "a", "an", "with", "w/"
+
+STEP 2 — Build Abbreviation Based on Remaining Words
+
+    1 word remaining:     First 4 characters
+                          Example: "Vestibule" → VEST
+
+    2 words remaining:    3 characters of word 1 + 2 characters of word 2
+                          Example: "Quiet Zone" → QUIZO
+
+    3+ words remaining:   2 characters of each word (max 6 characters total)
+                          Example: "Large Open Studio" → LAOPST
+
+STEP 3 — Variant Numbering
+    Each unique SDP Reference within a category gets a sequential number
+    based on how frequently it appears in the data:
+
+        Most common variant    → -001
+        Second most common     → -002
+        Third most common      → -003
+        ...and so on
+
+    Example: If there are 3 types of Exam Rooms, the most frequent one
+    becomes EXA-001, the next is EXA-002, then EXA-003.
+
+
+================================================================================
+MANUAL OVERRIDE
+================================================================================
+
+All abbreviations (both hardcoded and auto-generated) can be edited manually
+in the tool's Review stage before exporting to Excel. The tool will
+automatically flag any duplicate abbreviations in real time with a red
+highlight and a warning toast, preventing export until all codes are unique.
+
+================================================================================

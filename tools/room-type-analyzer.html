@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room Type Analyzer — Finish Tools</title>
+    <meta name="description"
+        content="Analyze SDP References and generate abbreviated room type codes for your team.">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #fafafa;
+            --bg-card: #ffffff;
+            --bg-hover: #f5f5f5;
+            --border: #e5e5e5;
+            --border-strong: #d4d4d4;
+            --text-primary: #0a0a0a;
+            --text-secondary: #525252;
+            --text-muted: #a3a3a3;
+            --accent: #000000;
+
+            --accent-sub: #2563eb;
+            --accent-sub-light: rgba(37, 99, 235, 0.08);
+            --accent-success: #16a34a;
+            --accent-success-light: rgba(22, 163, 74, 0.06);
+            --accent-warn: #ca8a04;
+            --accent-warn-light: rgba(202, 138, 4, 0.08);
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition-fast: 0.12s ease;
+            --transition-normal: 0.2s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 48px 40px;
+        }
+
+        .app-header {
+            margin-bottom: 48px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 32px;
+        }
+
+        .app-header .brand {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+
+        .app-header h1 {
+            font-size: 28px;
+            font-weight: 300;
+            letter-spacing: -0.5px;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .app-header .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* STAGE INDICATOR */
+        .stage-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-bottom: 40px;
+        }
+
+        .stage-dot {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            transition: all var(--transition-normal);
+        }
+
+        .stage-dot.active {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .stage-dot.done {
+            border-color: var(--accent-success);
+            background: var(--accent-success);
+            color: #fff;
+        }
+
+        .stage-conn {
+            width: 40px;
+            height: 2px;
+            background: var(--border);
+            transition: background var(--transition-normal);
+        }
+
+        .stage-conn.done {
+            background: var(--accent-success);
+        }
+
+        .stage-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-left: 8px;
+            margin-right: 16px;
+        }
+
+        /* STAGES */
+        .stage {
+            display: none;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        .stage.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* UPLOAD */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+            padding: 48px 32px;
+            text-align: center;
+            transition: all var(--transition-normal);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: var(--accent-sub);
+            background: var(--accent-sub-light);
+        }
+
+        .drop-zone .upload-icon {
+            width: 48px;
+            height: 48px;
+            border: 1.5px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 18px;
+            color: var(--text-muted);
+        }
+
+        .drop-zone h2 {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text-primary);
+        }
+
+        .drop-zone p {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--accent-success-light);
+            border: 1px solid rgba(22, 163, 74, 0.15);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .file-info .fi-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-success);
+            flex-shrink: 0;
+        }
+
+        .file-info .name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .file-info .meta {
+            color: var(--text-muted);
+            margin-left: auto;
+            font-size: 12px;
+        }
+
+        /* SHEET SELECTOR */
+        .sheet-selector {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 28px;
+            margin-bottom: 20px;
+        }
+
+        .sheet-selector h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .sheet-selector .hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .sheet-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .chip {
+            padding: 6px 14px;
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            transition: all var(--transition-fast);
+            user-select: none;
+        }
+
+        .chip:hover {
+            border-color: var(--border-strong);
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+        }
+
+        .chip.selected {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        /* COLUMN SELECTOR */
+        .col-selector {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 28px;
+            margin-bottom: 20px;
+        }
+
+        .col-selector h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .col-selector .hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        /* BUTTONS */
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 24px;
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: all var(--transition-fast);
+        }
+
+        .btn:hover {
+            border-color: var(--border-strong);
+            background: var(--bg-hover);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.85;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.25;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--border-strong);
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        /* ============================================
+           STAGE 2: REVIEW
+        ============================================ */
+        .review-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .review-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .review-stats {
+            display: flex;
+            gap: 24px;
+        }
+
+        .review-stat {
+            text-align: center;
+        }
+
+        .review-stat .stat-num {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--accent-sub);
+        }
+
+        .review-stat .stat-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .category-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            margin-bottom: 12px;
+            overflow: hidden;
+            transition: border-color var(--transition-normal);
+        }
+
+        .category-card:hover {
+            border-color: var(--border-strong);
+        }
+
+        .category-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .category-card-header .expand-icon {
+            font-size: 12px;
+            color: var(--text-muted);
+            transition: transform var(--transition-normal);
+            width: 16px;
+            text-align: center;
+        }
+
+        .category-card.expanded .category-card-header .expand-icon {
+            transform: rotate(90deg);
+        }
+
+        .category-card-header .cat-info {
+            flex: 1;
+        }
+
+        .category-card-header .cat-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .category-card-header .cat-detail {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .category-card-header .abbr-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .abbr-input {
+            width: 90px;
+            padding: 6px 10px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-family: 'Inter', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            text-align: center;
+            color: var(--accent-sub);
+            background: white;
+            transition: border-color var(--transition-fast);
+            letter-spacing: 0.5px;
+        }
+
+        .abbr-input:focus {
+            outline: none;
+            border-color: var(--accent-sub);
+        }
+
+        .abbr-input.collision {
+            border-color: #dc2626;
+            color: #dc2626;
+        }
+
+        .category-card-header .cat-count {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-sub);
+            padding: 3px 10px;
+            border-radius: 100px;
+            background: var(--accent-sub-light);
+            border: 1px solid rgba(37, 99, 235, 0.15);
+        }
+
+        .variant-list {
+            display: none;
+            padding: 0;
+        }
+
+        .category-card.expanded .variant-list {
+            display: block;
+        }
+
+        .variant-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 20px 10px 48px;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            transition: background var(--transition-fast);
+        }
+
+        .variant-item:last-child {
+            border-bottom: none;
+        }
+
+        .variant-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .variant-item .v-rank {
+            font-weight: 700;
+            color: var(--accent-sub);
+            min-width: 56px;
+            font-family: 'Inter', monospace;
+            font-size: 12px;
+        }
+
+        .variant-item .v-sdp {
+            flex: 1;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .variant-item .v-count {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            padding: 2px 8px;
+            border-radius: 100px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+        }
+
+        /* SEARCH */
+        .search-bar {
+            margin-bottom: 20px;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--text-primary);
+            transition: border-color var(--transition-fast);
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .search-bar input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* SKIPPED INFO */
+        .skipped-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: var(--accent-warn-light);
+            border: 1px solid rgba(202, 138, 4, 0.15);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .skipped-info strong {
+            color: var(--accent-warn);
+        }
+
+        /* ============================================
+           STAGE 3: EXPORT
+        ============================================ */
+        .export-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .export-stat-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            text-align: center;
+        }
+
+        .export-stat-card .es-num {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--accent-sub);
+        }
+
+        .export-stat-card .es-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .preview-table-wrap {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .preview-table-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .preview-table-header h3 {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .preview-table-header .pt-hint {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .preview-scroll {
+            max-height: 480px;
+            overflow: auto;
+        }
+
+        .preview-scroll table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        .preview-scroll th {
+            position: sticky;
+            top: 0;
+            padding: 8px 12px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            background: #fafafa;
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 1px 0 var(--border);
+            white-space: nowrap;
+            z-index: 2;
+        }
+
+        .preview-scroll th.highlight-col {
+            color: var(--accent-sub);
+            background: #e8f0fe;
+        }
+
+        .preview-scroll td {
+            padding: 7px 12px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .preview-scroll td.highlight-col {
+            color: var(--accent-sub);
+            font-weight: 700;
+            background: var(--accent-sub-light);
+        }
+
+        .preview-scroll tr:hover td {
+            background: var(--bg-hover);
+        }
+
+        .preview-scroll tr:hover td.highlight-col {
+            background: rgba(37, 99, 235, 0.12);
+        }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-strong);
+        }
+
+        /* COLLISION TOAST */
+        .collision-toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: #dc2626;
+            color: white;
+            padding: 10px 20px;
+            border-radius: var(--radius-md);
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 100;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .collision-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        @media (max-width: 768px) {
+            .app-container {
+                padding: 24px 16px;
+            }
+
+            .app-header h1 {
+                font-size: 22px;
+            }
+
+            .drop-zone {
+                padding: 48px 20px;
+            }
+
+            .export-summary {
+                grid-template-columns: 1fr;
+            }
+
+            .review-header {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="brand">Finish Tools</div>
+            <h1>Room Type Analyzer</h1>
+            <p class="subtitle">Upload your SDP Reference sheet and generate abbreviated room type codes</p>
+        </header>
+
+        <div class="stage-indicator">
+            <div class="stage-dot active" id="dot-1">1</div>
+            <span class="stage-label">Upload</span>
+            <div class="stage-conn" id="conn-1"></div>
+            <div class="stage-dot" id="dot-2">2</div>
+            <span class="stage-label">Review Types</span>
+            <div class="stage-conn" id="conn-2"></div>
+            <div class="stage-dot" id="dot-3">3</div>
+            <span class="stage-label">Export</span>
+        </div>
+
+        <!-- STAGE 1: UPLOAD -->
+        <section class="stage active" id="stage-upload">
+            <div class="drop-zone" id="dropZone">
+                <div class="upload-icon">&#8593;</div>
+                <h2>Drop your Excel file here</h2>
+                <p>Supports .xlsx and .xls — must contain an SDP Reference column</p>
+                <input type="file" accept=".xlsx,.xls" id="fileInput">
+            </div>
+
+            <div id="sheetSelectArea" style="display:none;">
+                <div class="file-info" style="margin-top:20px;">
+                    <span class="fi-icon"></span>
+                    <span class="name" id="fileName1"></span>
+                    <span class="meta" id="fileMeta1"></span>
+                </div>
+
+                <div class="sheet-selector">
+                    <h3>Select Sheet</h3>
+                    <p class="hint">Choose the sheet containing SDP Reference data</p>
+                    <div class="sheet-chips" id="sheetChips"></div>
+                </div>
+
+                <div class="col-selector" id="colSelectArea" style="display:none;">
+                    <h3>Confirm SDP Reference Column</h3>
+                    <p class="hint">Select the column that contains SDP Reference values</p>
+                    <div class="sheet-chips" id="colChips"></div>
+                </div>
+
+                <div class="btn-row">
+                    <button class="btn btn-secondary" id="btnReset1">Reset</button>
+                    <button class="btn btn-primary" id="btnAnalyze" disabled>Analyze Room Types →</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- STAGE 2: REVIEW -->
+        <section class="stage" id="stage-review">
+            <div class="file-info">
+                <span class="fi-icon"></span>
+                <span class="name" id="fileName2"></span>
+                <span class="meta" id="fileMeta2"></span>
+            </div>
+
+            <div class="review-header">
+                <h2>Review Room Types</h2>
+                <div class="review-stats">
+                    <div class="review-stat">
+                        <div class="stat-num" id="statCategories">0</div>
+                        <div class="stat-label">Categories</div>
+                    </div>
+                    <div class="review-stat">
+                        <div class="stat-num" id="statVariants">0</div>
+                        <div class="stat-label">Variants</div>
+                    </div>
+                    <div class="review-stat">
+                        <div class="stat-num" id="statRooms">0</div>
+                        <div class="stat-label">Rooms</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="skippedInfo" class="skipped-info" style="display:none;">
+                <strong id="skippedCount">0</strong> rows with blank SDP Reference — these will not receive a room type code
+            </div>
+
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Search categories or SDP references…">
+            </div>
+
+            <div id="categoriesContainer"></div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" id="btnBack2">← Back</button>
+                <button class="btn btn-primary" id="btnExport">Generate Export →</button>
+            </div>
+        </section>
+
+        <!-- STAGE 3: EXPORT -->
+        <section class="stage" id="stage-export">
+            <div class="file-info">
+                <span class="fi-icon"></span>
+                <span class="name" id="fileName3"></span>
+                <span class="meta" id="fileMeta3"></span>
+            </div>
+
+            <div class="export-summary">
+                <div class="export-stat-card">
+                    <div class="es-num" id="expCategories">0</div>
+                    <div class="es-label">Categories</div>
+                </div>
+                <div class="export-stat-card">
+                    <div class="es-num" id="expTyped">0</div>
+                    <div class="es-label">Rooms Typed</div>
+                </div>
+                <div class="export-stat-card">
+                    <div class="es-num" id="expSkipped">0</div>
+                    <div class="es-label">Blank / Skipped</div>
+                </div>
+            </div>
+
+            <div class="preview-table-wrap">
+                <div class="preview-table-header">
+                    <h3>Preview</h3>
+                    <span class="pt-hint">Showing first 100 rows with Room Type values</span>
+                </div>
+                <div class="preview-scroll" id="previewScroll"></div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" id="btnBack3">← Back to Review</button>
+                <button class="btn btn-primary" id="btnDownload">⬇ Download Excel</button>
+            </div>
+        </section>
+    </div>
+
+    <div class="collision-toast" id="collisionToast">Duplicate abbreviation detected — please fix before exporting</div>
+
+    <script>
+        // =============================================
+        // STATE
+        // =============================================
+        let workbook = null;
+        let rawFileName = '';
+        let selectedSheet = null;
+        let selectedColIdx = -1;  // 0-indexed
+        let sheetData = [];       // array of arrays (rows)
+        let headerRow = [];
+        let categories = {};      // { categoryKey: { abbr, variants: [ { sdp, count, typeCode } ] } }
+        let blankCount = 0;
+
+        // =============================================
+        // DOM REFS
+        // =============================================
+        const $ = id => document.getElementById(id);
+        const dropZone = $('dropZone');
+        const fileInput = $('fileInput');
+
+        // =============================================
+        // STAGE NAVIGATION
+        // =============================================
+        function goToStage(num) {
+            document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
+            const stageIds = ['stage-upload', 'stage-review', 'stage-export'];
+            document.getElementById(stageIds[num - 1]).classList.add('active');
+
+            for (let i = 1; i <= 3; i++) {
+                const dot = $('dot-' + i);
+                const conn = i < 3 ? $('conn-' + i) : null;
+                dot.classList.remove('active', 'done');
+                if (conn) conn.classList.remove('done');
+                if (i < num) {
+                    dot.classList.add('done');
+                    if (conn) conn.classList.add('done');
+                } else if (i === num) {
+                    dot.classList.add('active');
+                }
+            }
+        }
+
+        // =============================================
+        // STAGE 1: FILE UPLOAD
+        // =============================================
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+        fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+        function handleFile(file) {
+            if (!file) return;
+            rawFileName = file.name;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    workbook = XLSX.read(e.target.result, { type: 'array' });
+                    showSheetSelector(file);
+                } catch (err) {
+                    alert('Error reading file: ' + err.message + '\n\nPlease ensure this is a valid .xlsx or .xls file.');
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function showSheetSelector(file) {
+            $('sheetSelectArea').style.display = 'block';
+            dropZone.style.display = 'none';
+            $('fileName1').textContent = rawFileName;
+            $('fileMeta1').textContent = workbook.SheetNames.length + ' sheets';
+
+            const container = $('sheetChips');
+            container.innerHTML = '';
+            workbook.SheetNames.forEach(name => {
+                const chip = document.createElement('span');
+                chip.className = 'chip';
+                chip.textContent = name;
+                chip.addEventListener('click', () => selectSheet(name, container));
+                container.appendChild(chip);
+                // Auto-select if name contains "SDP"
+                if (name.toLowerCase().includes('sdp')) {
+                    setTimeout(() => chip.click(), 100);
+                }
+            });
+        }
+
+        function selectSheet(name, container) {
+            container.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+            container.querySelector(`.chip:nth-child(${workbook.SheetNames.indexOf(name) + 1})`).classList.add('selected');
+            selectedSheet = name;
+
+            // Parse sheet data — preserve all rows including trailing ones
+            const ws = workbook.Sheets[name];
+            const ref = ws['!ref'];
+            let expectedRows = 0;
+            if (ref) {
+                const endCell = ref.split(':')[1];
+                if (endCell) {
+                    const match = endCell.match(/\d+/);
+                    if (match) expectedRows = parseInt(match[0], 10);
+                }
+            }
+            sheetData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            // Pad if XLSX.js trimmed trailing rows
+            while (sheetData.length < expectedRows) {
+                sheetData.push(new Array(sheetData[0] ? sheetData[0].length : 0).fill(''));
+            }
+            if (sheetData.length < 2) return;
+
+            headerRow = sheetData[0].map(h => String(h || ''));
+
+            // Show column selector
+            const colArea = $('colSelectArea');
+            colArea.style.display = 'block';
+            const colContainer = $('colChips');
+            colContainer.innerHTML = '';
+
+            headerRow.forEach((h, idx) => {
+                if (!h.trim()) return;
+                const chip = document.createElement('span');
+                chip.className = 'chip';
+                chip.textContent = h;
+                chip.dataset.idx = idx;
+                chip.addEventListener('click', () => selectColumn(idx, colContainer));
+                colContainer.appendChild(chip);
+                // Auto-select if header matches SDP Reference
+                if (h.toLowerCase().includes('sdp') && h.toLowerCase().includes('ref')) {
+                    setTimeout(() => chip.click(), 150);
+                }
+            });
+        }
+
+        function selectColumn(idx, container) {
+            container.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+            const target = container.querySelector(`.chip[data-idx="${idx}"]`);
+            if (target) target.classList.add('selected');
+            selectedColIdx = idx;
+            $('btnAnalyze').disabled = false;
+        }
+
+        function resetUploadState() {
+            workbook = null;
+            selectedSheet = null;
+            selectedColIdx = -1;
+            sheetData = [];
+            headerRow = [];
+            categories = {};
+            blankCount = 0;
+            $('sheetSelectArea').style.display = 'none';
+            dropZone.style.display = 'block';
+            fileInput.value = '';
+            $('btnAnalyze').disabled = true;
+        }
+
+        $('btnReset1').addEventListener('click', resetUploadState);
+
+        $('btnAnalyze').addEventListener('click', () => {
+            analyzeRoomTypes();
+            goToStage(2);
+        });
+
+        // =============================================
+        // CATEGORY EXTRACTION LOGIC
+        // =============================================
+
+        /**
+         * Extract the category key from an SDP Reference string.
+         * Logic:
+         *  1. Strip the trailing number/code suffix (e.g., "2/Ai2-400.20")
+         *  2. If there's a comma, take text before the first comma
+         *  3. If no comma, strip size qualifiers (digits + SF, parenthesized sizes) to get core type
+         */
+        function extractCategory(sdp) {
+            let text = sdp.trim();
+
+            // Remove trailing pattern: <digits>/<code> or <digits>/
+            text = text.replace(/\s+\d+\/[^\s]*$/, '').replace(/\s+\d+\/$/, '').trim();
+
+            // If there's a comma, take text before it
+            if (text.includes(',')) {
+                text = text.split(',')[0].trim();
+            } else {
+                // Strip size qualifiers: e.g., "80 SF", "(80SF)", "270 SF", "(4 persons)", etc.
+                text = text.replace(/\s+\d+\s*SF\b/gi, '').trim();
+                text = text.replace(/\s*\(\d+\s*SF\)/gi, '').trim();
+                text = text.replace(/\s*\(\d+\s*persons?\)/gi, '').trim();
+                text = text.replace(/\s*\d+\s*SF\b/gi, '').trim();
+            }
+
+            return text || sdp.trim();
+        }
+
+        /**
+         * Generate an abbreviation from a category name.
+         * Examples:
+         *  - "Exam Room" → "EXA"
+         *  - "Staff WR" → "STFWR"
+         *  - "Office" → "OFF"
+         *  - "Clean supply room" → "CLNSP"
+         *  - "Medication room" → "MED"
+         */
+        function generateAbbreviation(categoryName) {
+            const name = categoryName.trim();
+
+            // Common abbreviation overrides
+            const overrides = {
+                'exam room': 'EXA',
+                'consult room': 'CONS',
+                'office': 'OFF',
+                'staff wr': 'STFWR',
+                'patient wr': 'PTWR',
+                'public wr': 'PUBWR',
+                'universal wr': 'UNIVWR',
+                'staff facilities': 'STFFC',
+                'staff lounge': 'STFLG',
+                'medication room': 'MED',
+                'clean supply room': 'CLNSP',
+                'soiled utility room': 'SLDU',
+                'housekeeping room': 'HSKP',
+                'housekeeping closet': 'HSKPC',
+                'housekeeping service room': 'HSKSR',
+                'housekeeping service hub': 'HSKSH',
+                'meeting room': 'MTG',
+                'conference room': 'CONF',
+                'chute room': 'CHUTE',
+                'nourish room': 'NOUR',
+                'main waiting area': 'MNWT',
+                'waiting area': 'WAIT',
+                'quiet room': 'QUIET',
+                'classroom': 'CLASS',
+                'workstation': 'WKST',
+                'reception': 'RECEP',
+                'pts w/ 915mm counter': 'PTS9',
+                'pts w/ 1830mm counter': 'PTS18',
+                'interdisciplinary team room': 'INTDT',
+                'interdisc team': 'INTT',
+                'alcove': 'ALC',
+                'privacy/multi-use room': 'PRIV',
+                'patient enhanced wr': 'PTEWR',
+                'public enhanced wr': 'PBEWR',
+                'clerical/registration (workstation)': 'CLRKW',
+                'clerical/registration (enclosed)': 'CLRKE',
+                'quiet/family/consultation room': 'QFCR',
+                'quiet/wellness room': 'QWELL',
+                'infant feeding': 'INFTF',
+                'breast pumping room': 'BRPMP',
+                'washroom': 'WR',
+            };
+
+            const lower = name.toLowerCase();
+            if (overrides[lower]) return overrides[lower];
+
+            // Remove filler words
+            const fillers = ['room', 'area', 'the', 'a', 'an', 'with', 'w/'];
+            let words = name.split(/[\s,]+/).filter(w => w && !fillers.includes(w.toLowerCase()));
+
+            if (words.length === 0) words = name.split(/[\s,]+/).filter(w => w);
+
+            if (words.length === 1) {
+                return words[0].substring(0, 4).toUpperCase();
+            }
+
+            // Take first 2-3 chars of first word + first 1-2 chars of remaining
+            let abbr = '';
+            if (words.length === 2) {
+                abbr = words[0].substring(0, 3) + words[1].substring(0, 2);
+            } else {
+                abbr = words.map(w => w.substring(0, 2)).join('');
+            }
+
+            return abbr.substring(0, 6).toUpperCase();
+        }
+
+        // =============================================
+        // ANALYSIS
+        // =============================================
+        function analyzeRoomTypes() {
+            categories = {};
+            blankCount = 0;
+
+            // Count occurrences of each full SDP Reference
+            const sdpCounter = {};
+            for (let r = 1; r < sheetData.length; r++) {
+                const val = String(sheetData[r][selectedColIdx] || '').trim();
+                if (!val) { blankCount++; continue; }
+                sdpCounter[val] = (sdpCounter[val] || 0) + 1;
+            }
+
+            // Group by category
+            const catGroups = {};
+            for (const [sdp, count] of Object.entries(sdpCounter)) {
+                const cat = extractCategory(sdp);
+                if (!catGroups[cat]) catGroups[cat] = [];
+                catGroups[cat].push({ sdp, count });
+            }
+
+            // Sort variants within each category by count (descending) and assign numbers
+            for (const [cat, variants] of Object.entries(catGroups)) {
+                variants.sort((a, b) => b.count - a.count);
+                const abbr = generateAbbreviation(cat);
+                categories[cat] = {
+                    abbr: abbr,
+                    variants: variants.map((v, i) => ({
+                        sdp: v.sdp,
+                        count: v.count,
+                        typeCode: abbr + '-' + String(i + 1).padStart(3, '0')
+                    }))
+                };
+            }
+
+            renderReviewStage();
+        }
+
+        // =============================================
+        // STAGE 2: RENDER REVIEW
+        // =============================================
+        function renderReviewStage() {
+            // File info
+            $('fileName2').textContent = rawFileName;
+            const totalVariants = Object.values(categories).reduce((s, c) => s + c.variants.length, 0);
+            const totalRooms = Object.values(categories).reduce((s, c) => s + c.variants.reduce((ss, v) => ss + v.count, 0), 0);
+            $('fileMeta2').textContent = selectedSheet;
+            $('statCategories').textContent = Object.keys(categories).length;
+            $('statVariants').textContent = totalVariants;
+            $('statRooms').textContent = totalRooms;
+
+            // Blank info
+            if (blankCount > 0) {
+                $('skippedInfo').style.display = 'flex';
+                $('skippedCount').textContent = blankCount;
+            } else {
+                $('skippedInfo').style.display = 'none';
+            }
+
+            renderCategoryCards();
+            checkCollisions();
+        }
+
+        // Track which categories are expanded
+        const expandedCats = new Set();
+
+        function renderCategoryCards(filter = '') {
+            const container = $('categoriesContainer');
+            container.innerHTML = '';
+
+            // Sort categories by total count descending
+            const sorted = Object.entries(categories).sort((a, b) => {
+                const countA = a[1].variants.reduce((s, v) => s + v.count, 0);
+                const countB = b[1].variants.reduce((s, v) => s + v.count, 0);
+                return countB - countA;
+            });
+
+            const lowerFilter = filter.toLowerCase();
+
+            for (const [cat, data] of sorted) {
+                // Filter check
+                if (lowerFilter) {
+                    const matches = cat.toLowerCase().includes(lowerFilter)
+                        || data.abbr.toLowerCase().includes(lowerFilter)
+                        || data.variants.some(v => v.sdp.toLowerCase().includes(lowerFilter));
+                    if (!matches) continue;
+                }
+
+                const totalCount = data.variants.reduce((s, v) => s + v.count, 0);
+                const card = document.createElement('div');
+                card.className = 'category-card';
+                card.dataset.cat = cat;
+
+                // Preserve expanded state across re-renders
+                if (expandedCats.has(cat)) card.classList.add('expanded');
+
+                card.innerHTML = `
+                    <div class="category-card-header">
+                        <span class="expand-icon">▶</span>
+                        <div class="cat-info">
+                            <div class="cat-name">${escHtml(cat)}</div>
+                            <div class="cat-detail">${data.variants.length} variant${data.variants.length > 1 ? 's' : ''}</div>
+                        </div>
+                        <div class="abbr-container">
+                            <input type="text" class="abbr-input" value="${escHtml(data.abbr)}" data-cat="${escHtml(cat)}"
+                                title="Edit abbreviation" spellcheck="false">
+                        </div>
+                        <span class="cat-count">${totalCount}</span>
+                    </div>
+                    <div class="variant-list">
+                        ${data.variants.map((v, i) => `
+                            <div class="variant-item">
+                                <span class="v-rank">${escHtml(data.abbr)}-${String(i + 1).padStart(3, '0')}</span>
+                                <span class="v-sdp">${escHtml(v.sdp)}</span>
+                                <span class="v-count">${v.count} rooms</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                // Toggle expand (track state)
+                card.querySelector('.category-card-header').addEventListener('click', e => {
+                    if (e.target.classList.contains('abbr-input')) return;
+                    card.classList.toggle('expanded');
+                    if (card.classList.contains('expanded')) {
+                        expandedCats.add(cat);
+                    } else {
+                        expandedCats.delete(cat);
+                    }
+                });
+
+                // Abbreviation editing
+                const abbrInput = card.querySelector('.abbr-input');
+                abbrInput.addEventListener('click', e => e.stopPropagation());
+                abbrInput.addEventListener('input', e => {
+                    const newAbbr = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    e.target.value = newAbbr;
+                    updateAbbreviation(cat, newAbbr, card);
+                });
+                abbrInput.addEventListener('blur', () => checkCollisions());
+
+                container.appendChild(card);
+            }
+        }
+
+        function updateAbbreviation(cat, newAbbr, card) {
+            categories[cat].abbr = newAbbr;
+            // Update variant type codes
+            categories[cat].variants.forEach((v, i) => {
+                v.typeCode = newAbbr + '-' + String(i + 1).padStart(3, '0');
+            });
+            // Update displayed ranks
+            const ranks = card.querySelectorAll('.v-rank');
+            categories[cat].variants.forEach((v, i) => {
+                if (ranks[i]) ranks[i].textContent = v.typeCode;
+            });
+            checkCollisions();
+        }
+
+        function checkCollisions() {
+            const abbrMap = {};
+            let hasCollision = false;
+
+            for (const [cat, data] of Object.entries(categories)) {
+                const a = data.abbr;
+                if (!a) continue;
+                if (abbrMap[a]) {
+                    abbrMap[a].push(cat);
+                    hasCollision = true;
+                } else {
+                    abbrMap[a] = [cat];
+                }
+            }
+
+            // Highlight collision inputs
+            document.querySelectorAll('.abbr-input').forEach(inp => {
+                const cat = inp.dataset.cat;
+                const a = categories[cat]?.abbr;
+                if (a && abbrMap[a] && abbrMap[a].length > 1) {
+                    inp.classList.add('collision');
+                } else {
+                    inp.classList.remove('collision');
+                }
+            });
+
+            // Toast
+            const toast = $('collisionToast');
+            if (hasCollision) {
+                toast.classList.add('show');
+                $('btnExport').disabled = true;
+            } else {
+                toast.classList.remove('show');
+                $('btnExport').disabled = false;
+            }
+        }
+
+        // Search
+        $('searchInput').addEventListener('input', e => {
+            renderCategoryCards(e.target.value);
+        });
+
+        // =============================================
+        // STAGE 2 NAVIGATION
+        // =============================================
+        $('btnBack2').addEventListener('click', () => {
+            resetUploadState();
+            goToStage(1);
+        });
+        $('btnExport').addEventListener('click', () => {
+            buildExport();
+            goToStage(3);
+        });
+
+        // =============================================
+        // STAGE 3: EXPORT
+        // =============================================
+        function buildExport() {
+            // Build lookup: full SDP Reference → type code
+            const sdpToType = {};
+            for (const data of Object.values(categories)) {
+                for (const v of data.variants) {
+                    sdpToType[v.sdp] = v.typeCode;
+                }
+            }
+
+            // File info
+            $('fileName3').textContent = rawFileName;
+            $('fileMeta3').textContent = selectedSheet;
+
+            // Stats
+            $('expCategories').textContent = Object.keys(categories).length;
+            let typedCount = 0;
+            let skippedCount = 0;
+
+            // Insert new column header
+            const newColIdx = selectedColIdx + 1;
+            const exportData = sheetData.map((row, rIdx) => {
+                const newRow = [...row];
+                if (rIdx === 0) {
+                    newRow.splice(newColIdx, 0, 'Room Type');
+                } else {
+                    const sdp = String(row[selectedColIdx] || '').trim();
+                    const typeCode = sdpToType[sdp] || '';
+                    newRow.splice(newColIdx, 0, typeCode);
+                    if (typeCode) typedCount++;
+                    else skippedCount++;
+                }
+                return newRow;
+            });
+
+            $('expTyped').textContent = typedCount;
+            $('expSkipped').textContent = skippedCount;
+
+            // Render preview table (first 100 rows with a type code)
+            renderPreviewTable(exportData, newColIdx);
+
+            // Store for download
+            window._exportData = exportData;
+        }
+
+        function renderPreviewTable(data, highlightCol) {
+            const container = $('previewScroll');
+            if (data.length < 2) {
+                container.innerHTML = '<p style="padding:20px;color:var(--text-muted);">No data to preview.</p>';
+                return;
+            }
+
+            const headers = data[0];
+            // Get first 100 data rows that have a value in the highlight column
+            const previewRows = [];
+            for (let i = 1; i < data.length && previewRows.length < 100; i++) {
+                if (String(data[i][highlightCol] || '').trim()) {
+                    previewRows.push(data[i]);
+                }
+            }
+
+            // Only show relevant columns: a few before SDP ref, SDP ref, Room Type, a few after
+            const startCol = Math.max(0, highlightCol - 4);
+            const endCol = Math.min(headers.length - 1, highlightCol + 2);
+            const colRange = [];
+            for (let c = startCol; c <= endCol; c++) colRange.push(c);
+
+            let html = '<table><thead><tr>';
+            for (const c of colRange) {
+                const isHL = c === highlightCol;
+                html += `<th class="${isHL ? 'highlight-col' : ''}">${escHtml(String(headers[c] || ''))}</th>`;
+            }
+            html += '</tr></thead><tbody>';
+
+            for (const row of previewRows) {
+                html += '<tr>';
+                for (const c of colRange) {
+                    const isHL = c === highlightCol;
+                    html += `<td class="${isHL ? 'highlight-col' : ''}">${escHtml(String(row[c] || ''))}</td>`;
+                }
+                html += '</tr>';
+            }
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // DOWNLOAD — Professional export matching QAQC tool styling
+        $('btnDownload').addEventListener('click', () => {
+            if (!window._exportData) return;
+            const data = window._exportData;
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const newColIdx = selectedColIdx + 1;
+            const cc = data[0].length;  // total columns
+            const rc = data.length;     // total rows including header
+
+            // ── Style Definitions ──
+            const origHdrStyle = {
+                font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+                fill: { fgColor: { rgb: '333333' } },
+                alignment: { horizontal: 'left', vertical: 'center', wrapText: false },
+                border: { bottom: { style: 'thin', color: { rgb: '000000' } } }
+            };
+            const roomTypeHdrStyle = {
+                font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+                fill: { fgColor: { rgb: '00A99D' } },
+                alignment: { horizontal: 'center', vertical: 'center', wrapText: false },
+                border: { bottom: { style: 'thin', color: { rgb: '000000' } } }
+            };
+            const cellStyle = {
+                alignment: { horizontal: 'left', vertical: 'center' },
+                font: { sz: 11 }
+            };
+            const roomTypeCellStyle = {
+                alignment: { horizontal: 'center', vertical: 'center' },
+                font: { bold: true, sz: 11, color: { rgb: '1D4ED8' } },
+                fill: { fgColor: { rgb: 'EFF6FF' } }
+            };
+            const roomTypeEmptyStyle = {
+                alignment: { horizontal: 'center', vertical: 'center' },
+                font: { sz: 11 },
+                fill: { fgColor: { rgb: 'F9FAFB' } }
+            };
+
+            // ── Column Widths (p90 sampling like QAQC) ──
+            const cols = [];
+            for (let c = 0; c < cc; c++) {
+                const hdrLen = String(data[0][c] || '').length;
+                const lens = [];
+                const step = rc > 500 ? Math.ceil(rc / 500) : 1;
+                for (let r = 1; r < rc; r += step) {
+                    const v = String(data[r][c] || '');
+                    if (v.length) lens.push(v.length);
+                }
+                lens.sort((a, b) => a - b);
+                const p90 = lens.length ? lens[Math.floor(lens.length * 0.9)] : 0;
+                const w = Math.max(hdrLen + 4, p90 + 2);
+                cols.push({ wch: Math.max(8, Math.min(w, 45)) });
+            }
+            ws['!cols'] = cols;
+
+            // ── Header Row Styles ──
+            for (let c = 0; c < cc; c++) {
+                const addr = XLSX.utils.encode_cell({ r: 0, c });
+                if (ws[addr]) {
+                    ws[addr].s = (c === newColIdx) ? roomTypeHdrStyle : origHdrStyle;
+                }
+            }
+
+            // ── Data Cell Styles ──
+            for (let r = 1; r < rc; r++) {
+                for (let c = 0; c < cc; c++) {
+                    const addr = XLSX.utils.encode_cell({ r, c });
+                    if (!ws[addr]) {
+                        // Create empty cell with style for Room Type column
+                        if (c === newColIdx) {
+                            ws[addr] = { t: 's', v: '', s: roomTypeEmptyStyle };
+                        }
+                        continue;
+                    }
+                    if (c === newColIdx) {
+                        ws[addr].s = ws[addr].v ? roomTypeCellStyle : roomTypeEmptyStyle;
+                    } else {
+                        ws[addr].s = cellStyle;
+                    }
+                }
+            }
+
+            // ── Autofilter ──
+            ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rc - 1, c: cc - 1 } }) };
+
+            // ── Freeze top row ──
+            ws['!views'] = [{ state: 'frozen', ySplit: 1 }];
+
+            const newWb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(newWb, ws, selectedSheet);
+            const outName = rawFileName.replace(/\.xlsx?$/i, '') + '_RoomTypes.xlsx';
+            XLSX.writeFile(newWb, outName);
+        });
+
+        $('btnBack3').addEventListener('click', () => goToStage(2));
+
+        // =============================================
+        // UTILITIES
+        // =============================================
+        function escHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+
+</html>

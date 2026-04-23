@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template Finder — Finish Tools</title>
+    <meta name="description" content="Find the right dRofus finish template by selecting materials across categories.">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #fafafa;
+            --bg-card: #ffffff;
+            --bg-hover: #f5f5f5;
+            --border: #e5e5e5;
+            --border-strong: #d4d4d4;
+            --text-primary: #0a0a0a;
+            --text-secondary: #525252;
+            --text-muted: #a3a3a3;
+            --accent: #000000;
+            --accent-light: #404040;
+            --accent-sub: #2563eb;
+            --accent-sub-light: rgba(37, 99, 235, 0.08);
+            --accent-success: #16a34a;
+            --accent-success-light: rgba(22, 163, 74, 0.06);
+            --accent-warn: #ca8a04;
+            --accent-warn-light: rgba(202, 138, 4, 0.08);
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition-fast: 0.12s ease;
+            --transition-normal: 0.2s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 48px 40px;
+        }
+
+        .app-header {
+            margin-bottom: 48px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 32px;
+        }
+
+        .app-header .brand {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+
+        .app-header h1 {
+            font-size: 28px;
+            font-weight: 300;
+            letter-spacing: -0.5px;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .app-header .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* STAGE INDICATOR */
+        .stage-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-bottom: 40px;
+        }
+
+        .stage-dot {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            transition: color var(--transition-normal);
+            letter-spacing: 0.3px;
+        }
+
+        .stage-dot.active {
+            color: var(--text-primary);
+        }
+
+        .stage-dot.done {
+            color: var(--accent-success);
+        }
+
+        .stage-dot .num {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1.5px solid var(--border);
+            color: var(--text-muted);
+            transition: all var(--transition-normal);
+        }
+
+        .stage-dot.active .num {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: white;
+        }
+
+        .stage-dot.done .num {
+            border-color: var(--accent-success);
+            background: var(--accent-success);
+            color: white;
+        }
+
+        .stage-connector {
+            width: 48px;
+            height: 1px;
+            background: var(--border);
+            margin: 0 12px;
+        }
+
+        .stage-connector.done {
+            background: var(--accent-success);
+        }
+
+        /* STAGES */
+        .stage {
+            display: none;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        .stage.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* UPLOAD */
+        .drop-zone {
+            border: 1.5px dashed var(--border-strong);
+            border-radius: var(--radius-lg);
+            padding: 80px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            position: relative;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+        }
+
+        .drop-zone .upload-icon {
+            width: 48px;
+            height: 48px;
+            border: 1.5px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 18px;
+            color: var(--text-muted);
+        }
+
+        .drop-zone h2 {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text-primary);
+        }
+
+        .drop-zone p {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        /* PANELS */
+        .selection-panel {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 28px;
+        }
+
+        .selection-panel+.selection-panel {
+            margin-top: 20px;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .panel-header .badge {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 3px 8px;
+            border-radius: 3px;
+        }
+
+        .panel-header .badge.tid {
+            background: var(--accent);
+            color: white;
+        }
+
+        .panel-header .badge.cat {
+            background: var(--accent-sub);
+            color: white;
+        }
+
+        .panel-header .badge.val {
+            background: var(--accent-warn);
+            color: white;
+        }
+
+        .panel-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .panel-header .hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        /* CHIPS */
+        .column-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .chip {
+            padding: 6px 14px;
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            transition: all var(--transition-fast);
+            user-select: none;
+        }
+
+        .chip:hover {
+            border-color: var(--border-strong);
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+        }
+
+        .chip.sel-tid {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .chip.sel-cat {
+            background: var(--accent-sub-light);
+            border-color: var(--accent-sub);
+            color: var(--accent-sub);
+        }
+
+        .chip.sel-val {
+            background: var(--accent-warn-light);
+            border-color: var(--accent-warn);
+            color: var(--accent-warn);
+        }
+
+        .chip.disabled {
+            opacity: 0.25;
+            pointer-events: none;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--accent-success-light);
+            border: 1px solid rgba(22, 163, 74, 0.15);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .file-info .fi-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-success);
+            flex-shrink: 0;
+        }
+
+        .file-info .name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .file-info .meta {
+            color: var(--text-muted);
+            margin-left: auto;
+            font-size: 12px;
+        }
+
+        /* BUTTONS */
+        .btn-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 28px;
+        }
+
+        .btn {
+            padding: 10px 28px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            transition: all var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            letter-spacing: 0.2px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-light);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.25;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        /* ============================================
+           STAGE 3: FINDER
+        ============================================ */
+        .finder-layout {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 28px;
+        }
+
+        @media (max-width: 900px) {
+            .finder-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .category-section {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        .category-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .category-header .cat-name {
+            font-size: 13px;
+            font-weight: 600;
+            flex: 1;
+            color: var(--text-primary);
+        }
+
+        .category-header .cat-count {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .category-values {
+            padding: 14px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .val-chip {
+            padding: 5px 12px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            transition: all var(--transition-fast);
+            user-select: none;
+        }
+
+        .val-chip:hover {
+            border-color: var(--border-strong);
+            background: var(--bg-secondary);
+        }
+
+        .val-chip.selected {
+            background: var(--accent-sub-light);
+            border-color: var(--accent-sub);
+            color: var(--accent-sub);
+            font-weight: 600;
+        }
+
+        .val-chip.dimmed {
+            opacity: 0.3;
+        }
+
+        .val-chip .vcount {
+            display: inline-block;
+            margin-left: 4px;
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            padding: 1px 5px;
+            border-radius: 100px;
+            border: 1px solid var(--border);
+        }
+
+        .val-chip.selected .vcount {
+            background: rgba(37, 99, 235, 0.15);
+            border-color: rgba(37, 99, 235, 0.2);
+            color: var(--accent-sub);
+        }
+
+        /* RESULTS SIDEBAR */
+        .results-sidebar {
+            position: sticky;
+            top: 24px;
+            align-self: start;
+        }
+
+        .match-summary {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .match-summary .match-count {
+            font-size: 48px;
+            font-weight: 700;
+            color: var(--accent-sub);
+        }
+
+        .match-summary .match-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .match-summary .match-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .selections-box {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .selections-box h4 {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .sel-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+        }
+
+        .sel-item:last-child {
+            border-bottom: none;
+        }
+
+        .sel-item .sel-cat {
+            color: var(--text-muted);
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .sel-item .sel-val {
+            font-weight: 600;
+            color: var(--accent-sub);
+        }
+
+        .sel-item .sel-remove {
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 14px;
+            padding: 0 4px;
+            transition: color var(--transition-fast);
+        }
+
+        .sel-item .sel-remove:hover {
+            color: #dc2626;
+        }
+
+        .match-list {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .match-item {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px;
+            padding: 10px 16px 8px;
+            border-bottom: 1px solid var(--border);
+            transition: background var(--transition-fast);
+            cursor: pointer;
+        }
+
+        .match-item:last-child {
+            border-bottom: none;
+        }
+
+        .match-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .match-item .mi-id {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .match-item .mi-rooms {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent-sub);
+            padding: 2px 8px;
+            border-radius: 100px;
+            background: var(--accent-sub-light);
+            border: 1px solid rgba(37, 99, 235, 0.15);
+        }
+
+        .match-item.expanded {
+            background: var(--bg-secondary);
+        }
+
+        .match-detail {
+            display: none;
+            padding: 0 16px 12px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .match-detail.open {
+            display: block;
+            animation: fadeIn 0.2s ease forwards;
+        }
+
+        .match-detail table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        .match-detail th {
+            text-align: left;
+            padding: 5px 8px;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .match-detail td {
+            padding: 5px 8px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .no-matches {
+            padding: 32px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .mi-badge {
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 100px;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        .mi-badge.potential {
+            color: #b45309;
+            background: rgba(217, 119, 6, 0.08);
+            border: 1px solid rgba(217, 119, 6, 0.2);
+        }
+
+        .mi-badge.complete {
+            color: #16a34a;
+            background: rgba(22, 163, 74, 0.08);
+            border: 1px solid rgba(22, 163, 74, 0.2);
+        }
+
+        .match-label.has-complete {
+            color: #16a34a;
+        }
+
+        .match-label.all-potential {
+            color: #b45309;
+        }
+
+        .mi-progress {
+            width: 100%;
+            height: 3px;
+            background: #f0f0f0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 2px;
+        }
+
+        .mi-progress-bar {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s ease, background 0.3s ease;
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-strong);
+        }
+
+        @media (max-width: 768px) {
+            .app-container {
+                padding: 24px 16px;
+            }
+
+            .app-header h1 {
+                font-size: 22px;
+            }
+
+            .drop-zone {
+                padding: 48px 20px;
+            }
+
+            .selection-panel {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="brand">Finish Tools</div>
+            <h1>Template Finder</h1>
+            <p class="subtitle">Upload a finish template CSV and find the right template by selecting materials</p>
+        </header>
+
+        <div class="stage-indicator">
+            <div class="stage-dot active" id="dot-1"><span class="num">1</span> Upload</div>
+            <div class="stage-connector" id="conn-1"></div>
+            <div class="stage-dot" id="dot-2"><span class="num">2</span> Map Columns</div>
+            <div class="stage-connector" id="conn-2"></div>
+            <div class="stage-dot" id="dot-3"><span class="num">3</span> Find Template</div>
+        </div>
+
+        <!-- STAGE 1: UPLOAD -->
+        <section class="stage active" id="stage-upload">
+            <div class="drop-zone" id="dropZone">
+                <div class="upload-icon">&#8593;</div>
+                <h2>Drop your CSV or Excel file here</h2>
+                <p>Supports .csv, .xlsx, and .xls</p>
+                <input type="file" accept=".csv,.xlsx,.xls" id="fileInput">
+            </div>
+        </section>
+
+        <!-- STAGE 2: MAP COLUMNS -->
+        <section class="stage" id="stage-map">
+            <div class="file-info">
+                <span class="fi-icon"></span>
+                <span class="name" id="fileName"></span>
+                <span class="meta" id="fileMeta"></span>
+            </div>
+
+            <div class="selection-panel">
+                <div class="panel-header">
+                    <span class="badge tid">T</span>
+                    <h3>Code Column</h3>
+                    <span class="hint">Template code column (e.g. F_TYP-0001)</span>
+                </div>
+                <div class="column-chips" id="tidChips"></div>
+            </div>
+
+            <div class="selection-panel">
+                <div class="panel-header">
+                    <span class="badge cat">C</span>
+                    <h3>Category Column</h3>
+                    <span class="hint">Column with category names (e.g. Floor Finish, Ceiling Material)</span>
+                </div>
+                <div class="column-chips" id="catChips"></div>
+            </div>
+
+            <div class="selection-panel">
+                <div class="panel-header">
+                    <span class="badge val">V</span>
+                    <h3>BIM ID Column</h3>
+                    <span class="hint">Column with material codes or names</span>
+                </div>
+                <div class="column-chips" id="valChips"></div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" id="btnBack1">Back</button>
+                <button class="btn btn-primary" id="btnFindTemplates" disabled>Find Templates</button>
+            </div>
+        </section>
+
+        <!-- STAGE 3: FINDER -->
+        <section class="stage" id="stage-finder">
+            <div class="file-info">
+                <span class="fi-icon"></span>
+                <span class="name" id="fileName2"></span>
+                <span class="meta" id="fileMeta2"></span>
+            </div>
+
+            <div class="finder-layout">
+                <div id="categoriesContainer"></div>
+                <div class="results-sidebar">
+                    <div class="match-summary">
+                        <div class="match-count" id="matchCount">0</div>
+                        <div class="match-label" id="matchLabel">Templates Match</div>
+                        <div class="match-hint" id="matchHint">Select materials to narrow down</div>
+                    </div>
+                    <div class="selections-box" id="selectionsBox" style="display:none;">
+                        <h4>Your Selections</h4>
+                        <div id="selectionsList"></div>
+                    </div>
+                    <button class="btn btn-secondary" style="width:100%;justify-content:center;margin-bottom:16px;"
+                        id="btnClearAll">Clear All Selections</button>
+                    <div class="match-list" id="matchList"></div>
+                    <div class="btn-row" style="margin-top:20px;">
+                        <button class="btn btn-secondary" id="btnBackToMap">Re-map</button>
+                        <button class="btn btn-secondary" id="btnNewFile">New File</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        /* STATE */
+        let csvData = [];
+        let csvHeaders = [];
+        let tidCol = null;   // Template ID column
+        let catCol = null;   // Category column
+        let valCol = null;   // Value column
+        let templates = {};  // { templateId: { category: [values], ... }, rooms: N }
+        let categories = {}; // { categoryName: Set([values]) }
+        let selections = {}; // { categoryName: Set([values]) }
+
+        /* DOM REFS */
+        const $ = id => document.getElementById(id);
+        const dropZone = $('dropZone');
+        const fileInput = $('fileInput');
+
+        /* NAVIGATION */
+        const allStages = [$('stage-upload'), $('stage-map'), $('stage-finder')];
+        function goToStage(n) {
+            allStages.forEach((s, i) => s.classList.toggle('active', i === n - 1));
+            for (let i = 1; i <= 3; i++) {
+                const dot = $('dot-' + i);
+                dot.classList.remove('active', 'done');
+                if (i < n) dot.classList.add('done');
+                else if (i === n) dot.classList.add('active');
+            }
+            for (let i = 1; i <= 2; i++) {
+                $('conn-' + i).classList.toggle('done', i < n);
+            }
+        }
+
+        /* STAGE 1: FILE */
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault(); dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+        function handleFile(file) {
+            const name = file.name.toLowerCase();
+            const isExcel = name.endsWith('.xlsx') || name.endsWith('.xls');
+            const isCsv = name.endsWith('.csv');
+            if (!isExcel && !isCsv) { alert('Please upload a CSV or Excel file (.csv, .xlsx, .xls).'); return; }
+
+            if (isCsv) {
+                Papa.parse(file, {
+                    header: true, skipEmptyLines: true,
+                    complete: (result) => loadData(result.data, (result.meta.fields || []).filter(h => h.trim() !== ''), file.name),
+                    error: (err) => alert('Error parsing CSV: ' + err.message)
+                });
+            } else {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const wb = XLSX.read(e.target.result, { type: 'array' });
+                        if (wb.SheetNames.length === 1) {
+                            parseExcelSheet(wb, wb.SheetNames[0], file.name);
+                        } else {
+                            showSheetPicker(wb, file.name);
+                        }
+                    } catch (err) { alert('Error reading Excel file: ' + err.message); }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        function parseExcelSheet(wb, sheetName, fileName) {
+            const ws = wb.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            const headers = json.length > 0 ? Object.keys(json[0]).filter(h => h.trim() !== '') : [];
+            loadData(json, headers, fileName + ' → ' + sheetName);
+        }
+
+        function showSheetPicker(wb, fileName) {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:9999;';
+            const modal = document.createElement('div');
+            modal.style.cssText = 'background:white;border-radius:12px;padding:32px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.15);font-family:Inter,-apple-system,sans-serif;';
+            let html = '<div style="font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#a3a3a3;margin-bottom:12px;">SELECT SHEET</div>';
+            html += `<div style="font-size:14px;margin-bottom:20px;color:#525252;">This workbook has ${wb.SheetNames.length} sheets. Pick one:</div>`;
+            wb.SheetNames.forEach((name, i) => {
+                html += `<button class="sheet-pick-btn" data-idx="${i}" style="display:block;width:100%;text-align:left;padding:12px 16px;margin-bottom:6px;border:1px solid #e5e5e5;border-radius:8px;background:white;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 0.15s ease;">${escHtml(name)}</button>`;
+            });
+            html += '<button id="sheetPickCancel" style="margin-top:12px;font-size:12px;color:#a3a3a3;background:none;border:none;cursor:pointer;font-family:inherit;">Cancel</button>';
+            modal.innerHTML = html;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+
+            modal.querySelectorAll('.sheet-pick-btn').forEach(btn => {
+                btn.addEventListener('mouseenter', () => { btn.style.borderColor = '#000'; btn.style.background = '#fafafa'; });
+                btn.addEventListener('mouseleave', () => { btn.style.borderColor = '#e5e5e5'; btn.style.background = 'white'; });
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.idx);
+                    document.body.removeChild(overlay);
+                    parseExcelSheet(wb, wb.SheetNames[idx], fileName);
+                });
+            });
+            modal.querySelector('#sheetPickCancel').addEventListener('click', () => document.body.removeChild(overlay));
+        }
+
+        function loadData(data, headers, displayName) {
+            csvData = data;
+            csvHeaders = headers;
+            const info = `${csvData.length.toLocaleString()} rows, ${csvHeaders.length} columns`;
+            $('fileName').textContent = displayName;
+            $('fileMeta').textContent = info;
+            $('fileName2').textContent = displayName;
+            $('fileMeta2').textContent = info;
+            tidCol = null; catCol = null; valCol = null;
+            buildMapChips();
+            goToStage(2);
+        }
+
+        /* STAGE 2: MAP COLUMNS */
+        function buildMapChips() {
+            ['tidChips', 'catChips', 'valChips'].forEach(id => $(id).innerHTML = '');
+            $('btnFindTemplates').disabled = true;
+
+            csvHeaders.forEach(header => {
+                // Template ID chips
+                const t = document.createElement('div');
+                t.className = 'chip'; t.textContent = header;
+                t.addEventListener('click', () => selectMapping('tid', header));
+                $('tidChips').appendChild(t);
+
+                // Category chips
+                const c = document.createElement('div');
+                c.className = 'chip'; c.textContent = header;
+                c.addEventListener('click', () => selectMapping('cat', header));
+                $('catChips').appendChild(c);
+
+                // Value chips
+                const v = document.createElement('div');
+                v.className = 'chip'; v.textContent = header;
+                v.addEventListener('click', () => selectMapping('val', header));
+                $('valChips').appendChild(v);
+            });
+        }
+
+        function selectMapping(type, header) {
+            if (type === 'tid') tidCol = header;
+            else if (type === 'cat') catCol = header;
+            else if (type === 'val') valCol = header;
+            updateMapChips();
+        }
+
+        function updateMapChips() {
+            const selected = { tid: tidCol, cat: catCol, val: valCol };
+            ['tid', 'cat', 'val'].forEach(type => {
+                const container = $(type + 'Chips');
+                Array.from(container.children).forEach(chip => {
+                    const h = chip.textContent;
+                    chip.className = 'chip';
+                    if (h === selected[type]) {
+                        chip.classList.add('sel-' + type);
+                    } else {
+                        // Disable if selected in another mapping
+                        const otherSelected = Object.entries(selected)
+                            .filter(([k]) => k !== type)
+                            .map(([, v]) => v)
+                            .filter(Boolean);
+                        if (otherSelected.includes(h)) chip.classList.add('disabled');
+                    }
+                });
+            });
+            $('btnFindTemplates').disabled = !(tidCol && catCol && valCol);
+        }
+
+        /* STAGE 3: BUILD TEMPLATES & FINDER */
+        function buildTemplates() {
+            templates = {};
+            categories = {};
+
+            csvData.forEach(row => {
+                const tid = String(row[tidCol] ?? '').trim();
+                const cat = shortColName(String(row[catCol] ?? '').trim());
+                const val = String(row[valCol] ?? '').trim();
+                if (!tid || !cat || !val) return;
+
+                if (!templates[tid]) templates[tid] = { items: {}, rooms: 0 };
+                if (!templates[tid].items[cat]) templates[tid].items[cat] = [];
+                if (!templates[tid].items[cat].includes(val)) {
+                    templates[tid].items[cat].push(val);
+                }
+
+                // Try to get room count from a Rooms column
+                if (!templates[tid].rooms) {
+                    const roomsCol = csvHeaders.find(h => h.toLowerCase().includes('room'));
+                    if (roomsCol) {
+                        const n = parseInt(row[roomsCol]);
+                        if (!isNaN(n)) templates[tid].rooms = n;
+                    }
+                }
+
+                if (!categories[cat]) categories[cat] = new Set();
+                categories[cat].add(val);
+            });
+
+            selections = {};
+            renderFinder();
+        }
+
+        function renderFinder() {
+            const matchData = getMatchingTemplates();
+            const matching = matchData.map(m => m.tid);
+
+            const container = $('categoriesContainer');
+            container.innerHTML = '';
+
+            // Sort categories in preferred architectural order
+            // Supports synonyms: "Floor" = "Floor Finish", "Base" = "Floor Base", "Wall" = "Wall Finish"
+            const catOrder = [
+                { keywords: ['floor', 'finish'], rank: 1 },
+                { keywords: ['floor', 'base'], rank: 2 },
+                { keywords: ['floor', 'material'], rank: 3 },
+                { keywords: ['wall', 'finish'], rank: 4 },
+                { keywords: ['ceiling', 'material'], rank: 5 },
+                { keywords: ['ceiling', 'finish'], rank: 6 },
+                // Single-word synonyms (checked after multi-word rules)
+                { exact: 'floor', rank: 1 },
+                { exact: 'base', rank: 2 },
+                { exact: 'wall', rank: 4 },
+            ];
+            function getCatRank(cat) {
+                const lower = cat.toLowerCase().trim();
+                // Check multi-keyword rules first (more specific)
+                for (const rule of catOrder) {
+                    if (rule.keywords && rule.keywords.every(k => lower.includes(k))) return rule.rank;
+                }
+                // Then check exact single-word synonyms
+                for (const rule of catOrder) {
+                    if (rule.exact && lower === rule.exact) return rule.rank;
+                }
+                return 999;
+            }
+            const sortedCats = Object.keys(categories).sort((a, b) => {
+                const ra = getCatRank(a), rb = getCatRank(b);
+                if (ra !== rb) return ra - rb;
+                return a.localeCompare(b);
+            });
+
+            // matching (TID array) already computed above
+            sortedCats.forEach(cat => {
+                const section = document.createElement('div');
+                section.className = 'category-section';
+
+                // Count how many values still appear in matching templates for this category
+                const allVals = Array.from(categories[cat]).sort();
+                const availableVals = new Set();
+                matching.forEach(tid => {
+                    const items = templates[tid].items[cat] || [];
+                    items.forEach(v => availableVals.add(v));
+                });
+
+                const header = document.createElement('div');
+                header.className = 'category-header';
+                header.innerHTML = `
+                    <span class="cat-name">${escHtml(cat)}</span>
+                    <span class="cat-count">${allVals.length} option${allVals.length !== 1 ? 's' : ''}</span>
+                `;
+
+                const values = document.createElement('div');
+                values.className = 'category-values';
+
+                allVals.forEach(val => {
+                    const chip = document.createElement('div');
+                    const isSelected = selections[cat] && selections[cat].has(val);
+                    const isAvailable = availableVals.has(val) || isSelected;
+                    chip.className = 'val-chip' + (isSelected ? ' selected' : '') + (!isAvailable && !isSelected ? ' dimmed' : '');
+
+                    // Count templates with this value among matching
+                    const count = matching.filter(tid => (templates[tid].items[cat] || []).includes(val)).length;
+
+                    chip.innerHTML = `${escHtml(val)}<span class="vcount">${isSelected ? '✓' : count}</span>`;
+                    chip.addEventListener('click', () => {
+                        if (!selections[cat]) selections[cat] = new Set();
+                        if (selections[cat].has(val)) {
+                            selections[cat].delete(val);
+                            if (selections[cat].size === 0) delete selections[cat];
+                        } else {
+                            selections[cat].add(val);
+                        }
+                        renderFinder();
+                    });
+                    values.appendChild(chip);
+                });
+
+                section.appendChild(header);
+                section.appendChild(values);
+                container.appendChild(section);
+            });
+
+            // Update sidebar
+            renderSidebar(matchData);
+        }
+
+        function getMatchingTemplates() {
+            const selEntries = Object.entries(selections);
+            if (selEntries.length === 0) {
+                // No selections: all templates are potential matches
+                return Object.keys(templates).map(tid => {
+                    const totalItems = Object.values(templates[tid].items).reduce((s, vals) => s + vals.length, 0);
+                    return { tid, coveredItems: 0, totalItems, isComplete: false };
+                });
+            }
+            const matchingTids = Object.keys(templates).filter(tid => {
+                return selEntries.every(([cat, vals]) => {
+                    const items = templates[tid].items[cat] || [];
+                    return Array.from(vals).every(v => items.includes(v));
+                });
+            });
+            // Enrich with coverage info — count individual values, not just categories
+            return matchingTids.map(tid => {
+                const t = templates[tid];
+                const totalItems = Object.values(t.items).reduce((s, vals) => s + vals.length, 0);
+                let coveredItems = 0;
+                Object.entries(t.items).forEach(([cat, vals]) => {
+                    if (selections[cat]) {
+                        vals.forEach(v => {
+                            if (selections[cat].has(v)) coveredItems++;
+                        });
+                    }
+                });
+                return { tid, coveredItems, totalItems, isComplete: coveredItems === totalItems };
+            }).sort((a, b) => b.coveredItems - a.coveredItems || a.totalItems - b.totalItems);
+        }
+
+        function renderSidebar(matchData) {
+            const selEntries = Object.entries(selections);
+            const totalSelections = selEntries.reduce((sum, [, vals]) => sum + vals.size, 0);
+            const completeMatches = matchData.filter(m => m.isComplete);
+            const partialMatches = matchData.filter(m => !m.isComplete);
+
+            // Match count + label
+            const matchLabel = $('matchLabel');
+            if (totalSelections === 0) {
+                $('matchCount').textContent = matchData.length;
+                matchLabel.textContent = 'Potential Matches';
+                matchLabel.className = 'match-label all-potential';
+                $('matchHint').textContent = 'Select materials to narrow down';
+            } else if (completeMatches.length > 0 && partialMatches.length > 0) {
+                $('matchCount').textContent = completeMatches.length;
+                matchLabel.textContent = 'Complete Match' + (completeMatches.length !== 1 ? 'es' : '');
+                matchLabel.className = 'match-label has-complete';
+                $('matchHint').textContent = `+ ${partialMatches.length} potential match${partialMatches.length !== 1 ? 'es' : ''}`;
+            } else if (completeMatches.length > 0) {
+                $('matchCount').textContent = completeMatches.length;
+                matchLabel.textContent = 'Complete Match' + (completeMatches.length !== 1 ? 'es' : '');
+                matchLabel.className = 'match-label has-complete';
+                $('matchHint').textContent = `${totalSelections} material${totalSelections !== 1 ? 's' : ''} selected across ${selEntries.length} categor${selEntries.length !== 1 ? 'ies' : 'y'}`;
+            } else if (partialMatches.length > 0) {
+                $('matchCount').textContent = partialMatches.length;
+                matchLabel.textContent = 'Potential Match' + (partialMatches.length !== 1 ? 'es' : '');
+                matchLabel.className = 'match-label all-potential';
+                $('matchHint').textContent = 'Select more categories to confirm';
+            } else {
+                $('matchCount').textContent = '0';
+                matchLabel.textContent = 'Templates Match';
+                matchLabel.className = 'match-label';
+                $('matchHint').textContent = `${totalSelections} material${totalSelections !== 1 ? 's' : ''} selected across ${selEntries.length} categor${selEntries.length !== 1 ? 'ies' : 'y'}`;
+            }
+
+            // Selections box
+            const selBox = $('selectionsBox');
+            const selList = $('selectionsList');
+            if (totalSelections > 0) {
+                selBox.style.display = '';
+                selList.innerHTML = '';
+                selEntries.forEach(([cat, vals]) => {
+                    Array.from(vals).forEach(val => {
+                        const item = document.createElement('div');
+                        item.className = 'sel-item';
+                        item.innerHTML = `
+                            <span class="sel-cat">${escHtml(cat)}</span>
+                            <span class="sel-val">${escHtml(val)}</span>
+                            <span class="sel-remove" title="Remove">&times;</span>
+                        `;
+                        item.querySelector('.sel-remove').addEventListener('click', () => {
+                            selections[cat].delete(val);
+                            if (selections[cat].size === 0) delete selections[cat];
+                            renderFinder();
+                        });
+                        selList.appendChild(item);
+                    });
+                });
+            } else {
+                selBox.style.display = 'none';
+            }
+
+            // Match list
+            const matchList = $('matchList');
+            matchList.innerHTML = '';
+            if (matchData.length === 0) {
+                if (totalSelections > 0) {
+                    matchList.innerHTML = `
+                        <div class="no-matches">
+                            <div style="margin-bottom:12px;">No existing templates match</div>
+                            <button class="btn btn-primary" id="btnExportNewTemplate" style="font-size:12px;padding:8px 20px;">
+                                Export as New Template
+                            </button>
+                        </div>`;
+                    $('btnExportNewTemplate').addEventListener('click', exportNewTemplate);
+                } else {
+                    matchList.innerHTML = '<div class="no-matches">No templates match your selections</div>';
+                }
+            } else {
+                // Show "Export as New Template" if no complete match exists
+                const hasComplete = completeMatches.length > 0;
+                if (!hasComplete && totalSelections > 0) {
+                    const exportRow = document.createElement('div');
+                    exportRow.style.cssText = 'padding:12px 16px;border-bottom:1px solid var(--border);text-align:center;';
+                    exportRow.innerHTML = `<button class="btn btn-primary" id="btnExportNewTemplate" style="font-size:11px;padding:6px 16px;">Export as New Template</button>`;
+                    matchList.appendChild(exportRow);
+                    exportRow.querySelector('#btnExportNewTemplate').addEventListener('click', exportNewTemplate);
+                }
+
+                matchData.forEach(({ tid, coveredItems, totalItems, isComplete }) => {
+                    const t = templates[tid];
+                    const item = document.createElement('div');
+                    item.className = 'match-item';
+                    const badgeClass = isComplete ? 'complete' : 'potential';
+                    const badgeText = isComplete ? 'Complete ✓' : `${coveredItems} of ${totalItems}`;
+                    // Progress bar color: red → orange → green
+                    const pct = totalItems > 0 ? Math.round((coveredItems / totalItems) * 100) : 0;
+                    const barColor = isComplete ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+                    item.innerHTML = `
+                        <div style="display:flex;align-items:center;gap:10px;width:100%;">
+                            <span class="mi-id">Code: ${escHtml(tid)}</span>
+                            <span class="mi-badge ${badgeClass}">${badgeText}</span>
+                            ${t.rooms ? `<span class="mi-rooms">${t.rooms} rooms</span>` : ''}
+                        </div>
+                        <div class="mi-progress"><div class="mi-progress-bar" style="width:${pct}%;background:${barColor};"></div></div>
+                    `;
+                    const detail = document.createElement('div');
+                    detail.className = 'match-detail';
+                    let dt = '<table><thead><tr><th>Category</th><th>Value</th></tr></thead><tbody>';
+                    Object.entries(t.items).sort(([a], [b]) => a.localeCompare(b)).forEach(([cat, vals]) => {
+                        vals.forEach(val => {
+                            const highlight = selections[cat] && selections[cat].has(val);
+                            dt += `<tr><td>${escHtml(cat)}</td><td style="${highlight ? 'font-weight:600;color:#2563eb;' : ''}">${escHtml(val)}</td></tr>`;
+                        });
+                    });
+                    dt += '</tbody></table>';
+                    detail.innerHTML = dt;
+
+                    item.addEventListener('click', () => {
+                        const isOpen = detail.classList.contains('open');
+                        matchList.querySelectorAll('.match-detail').forEach(d => d.classList.remove('open'));
+                        matchList.querySelectorAll('.match-item').forEach(m => m.classList.remove('expanded'));
+                        if (!isOpen) {
+                            detail.classList.add('open');
+                            item.classList.add('expanded');
+                        }
+                    });
+                    matchList.appendChild(item);
+                    matchList.appendChild(detail);
+                });
+            }
+        }
+
+        /* BUTTONS */
+        $('btnBack1').addEventListener('click', () => { fileInput.value = ''; goToStage(1); });
+        $('btnFindTemplates').addEventListener('click', () => { buildTemplates(); goToStage(3); });
+        $('btnBackToMap').addEventListener('click', () => { fileInput.value = ''; goToStage(2); });
+        $('btnNewFile').addEventListener('click', () => {
+            csvData = []; csvHeaders = []; tidCol = null; catCol = null; valCol = null;
+            templates = {}; categories = {}; selections = {};
+            fileInput.value = ''; goToStage(1);
+        });
+        $('btnClearAll').addEventListener('click', () => { selections = {}; renderFinder(); });
+
+        /* UTILITY */
+        /* EXPORT NEW TEMPLATE */
+        function exportNewTemplate() {
+            const selEntries = Object.entries(selections);
+            if (selEntries.length === 0) return;
+
+            const allVals = [];
+            selEntries.forEach(([cat, vals]) => Array.from(vals).forEach(v => allVals.push(v)));
+            const comboName = allVals.join(', ');
+
+            const data = [['Code', 'Template Name', 'Category', 'BIM ID']];
+            selEntries.forEach(([cat, vals]) => {
+                Array.from(vals).forEach(val => {
+                    data.push(['', comboName, cat, val]);
+                });
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(data);
+
+            // Style definitions
+            const hdrStyle = {
+                font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+                fill: { fgColor: { rgb: '333333' } },
+                alignment: { horizontal: 'left', vertical: 'center' },
+                border: { bottom: { style: 'thin', color: { rgb: '000000' } } }
+            };
+            const cellSt = { alignment: { horizontal: 'left', vertical: 'center' }, font: { sz: 11 } };
+
+            // Auto-fit + style
+            const colCount = data[0].length;
+            const cols = [];
+            for (let c = 0; c < colCount; c++) {
+                let maxLen = 8;
+                data.forEach(row => { const v = String(row[c] || ''); if (v.length > maxLen) maxLen = v.length; });
+                cols.push({ wch: Math.max(12, Math.min(Math.ceil(maxLen * 1.15) + 3, 55)) });
+            }
+            ws['!cols'] = cols;
+            for (let c = 0; c < colCount; c++) {
+                const ha = XLSX.utils.encode_cell({ r: 0, c });
+                if (ws[ha]) ws[ha].s = hdrStyle;
+                for (let r = 1; r < data.length; r++) {
+                    const a = XLSX.utils.encode_cell({ r, c });
+                    if (ws[a]) ws[a].s = cellSt;
+                }
+            }
+            const lastCol = XLSX.utils.encode_col(colCount - 1);
+            ws['!autofilter'] = { ref: 'A1:' + lastCol + data.length };
+
+            XLSX.utils.book_append_sheet(wb, ws, 'New Template');
+            XLSX.writeFile(wb, 'new_template.xlsx');
+        }
+
+        function qCSV(v) { const s = String(v); return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s; }
+        function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+        // Normalize verbose column names to short consistent names
+        function shortColName(name) {
+            const n = (name || '').trim().toLowerCase();
+            if (n === 'floor finish' || n === 'floor') return 'Floor';
+            if (n === 'floor base' || n === 'base') return 'Base';
+            if (n === 'wall finish' || n === 'wall') return 'Wall';
+            if (n === 'ceiling material' || n === 'ceiling mat') return 'Ceiling Material';
+            if (n === 'ceiling finish') return 'Ceiling Finish';
+            return name;
+        }
+    </script>
+</body>
+
+</html>

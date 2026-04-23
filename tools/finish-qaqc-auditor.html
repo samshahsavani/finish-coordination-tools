@@ -1,0 +1,2260 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finish QAQC Auditor — Finish Tools</title>
+    <meta name="description"
+        content="Audit dRofus room finish sheets for errors, typos, and rule violations before template analysis.">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #fafafa;
+            --bg-card: #ffffff;
+            --bg-hover: #f5f5f5;
+            --border: #e5e5e5;
+            --border-strong: #d4d4d4;
+            --text-primary: #0a0a0a;
+            --text-secondary: #525252;
+            --text-muted: #a3a3a3;
+            --accent: #000000;
+            --accent-sub: #2563eb;
+            --accent-sub-light: rgba(37, 99, 235, 0.08);
+            --accent-success: #16a34a;
+            --accent-success-light: rgba(22, 163, 74, 0.06);
+            --accent-danger: #dc2626;
+            --accent-danger-light: rgba(220, 38, 38, 0.06);
+            --accent-warn: #d97706;
+            --accent-warn-light: rgba(217, 119, 6, 0.06);
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition-fast: 0.12s ease;
+            --transition-normal: 0.2s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 48px 40px;
+        }
+
+        .app-header {
+            margin-bottom: 48px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 32px;
+        }
+
+        .app-header .brand {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+
+        .app-header h1 {
+            font-size: 28px;
+            font-weight: 300;
+            letter-spacing: -0.5px;
+            margin-bottom: 6px;
+        }
+
+        .app-header .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .stage-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-bottom: 40px;
+        }
+
+        .stage-dot {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            transition: all var(--transition-normal);
+        }
+
+        .stage-dot.active {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .stage-dot.done {
+            border-color: var(--accent-success);
+            background: var(--accent-success);
+            color: #fff;
+        }
+
+        .stage-conn {
+            width: 40px;
+            height: 2px;
+            background: var(--border);
+            transition: background var(--transition-normal);
+        }
+
+        .stage-conn.done {
+            background: var(--accent-success);
+        }
+
+        .stage-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-left: 8px;
+            margin-right: 16px;
+        }
+
+        .stage {
+            display: none;
+        }
+
+        .stage.active {
+            display: block;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* FILES */
+        .upload-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+            padding: 48px 32px;
+            text-align: center;
+            transition: all var(--transition-normal);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: var(--accent-sub);
+            background: var(--accent-sub-light);
+        }
+
+        .drop-zone.loaded {
+            border-color: var(--accent-success);
+            border-style: solid;
+            background: var(--accent-success-light);
+        }
+
+        .drop-zone .upload-icon {
+            width: 48px;
+            height: 48px;
+            border: 1.5px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 18px;
+            color: var(--text-muted);
+        }
+
+        .drop-zone .dz-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .drop-zone .dz-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .drop-zone .dz-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 10px;
+            line-height: 1.5;
+            max-width: 260px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .section-intro {
+            margin-bottom: 24px;
+        }
+
+        .section-intro h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .section-intro p {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .rule-desc {
+            width: 100%;
+            font-size: 11px;
+            color: var(--text-muted);
+            font-style: italic;
+            padding: 0 16px 10px 56px;
+            margin-top: -4px;
+            line-height: 1.4;
+        }
+
+        .drop-zone .dz-file {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-success);
+            margin-top: 8px;
+        }
+
+        /* BUTTONS */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 24px;
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: all var(--transition-fast);
+        }
+
+        .btn:hover {
+            border-color: var(--border-strong);
+            background: var(--bg-hover);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.85;
+        }
+
+        .btn-danger {
+            background: var(--accent-danger);
+            color: #fff;
+            border-color: var(--accent-danger);
+        }
+
+        .btn-danger:hover {
+            opacity: 0.85;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 11px;
+        }
+
+        /* FILE BANNER */
+        .file-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .file-banner .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-success);
+        }
+
+        .file-banner .name {
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .file-banner .meta {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        /* COLUMN MAPPING */
+        .map-groups {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .map-group {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .map-group-header {
+            padding: 12px 20px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+        }
+
+        .map-group-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+        }
+
+        .map-group-body.single {
+            grid-template-columns: 1fr;
+        }
+
+        .map-card {
+            padding: 16px 20px;
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .map-card:nth-child(2n) {
+            border-right: none;
+        }
+
+        .map-card:nth-last-child(-n+2) {
+            border-bottom: none;
+        }
+
+        .map-group-body.single .map-card {
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .map-card h4 {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .map-card select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 13px;
+            background: #fff;
+            color: var(--text-primary);
+        }
+
+        /* RULES */
+        .rules-panel {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+        }
+
+        .rules-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .rules-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .rules-body {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .rule-card {
+            display: flex;
+            align-items: stretch;
+            flex-wrap: wrap;
+            border-bottom: 1px solid var(--border);
+            transition: background var(--transition-fast);
+            position: relative;
+        }
+
+        .rule-card:last-child {
+            border-bottom: none;
+        }
+
+        .rule-card:nth-child(even) {
+            background: var(--bg-secondary);
+        }
+
+        .rule-card:hover {
+            background: var(--bg-hover);
+        }
+
+        .rule-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            min-width: 36px;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-muted);
+            border-right: 1px solid var(--border);
+            user-select: none;
+        }
+
+        .rule-side {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            flex: 1;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
+
+        .rule-side.if-side {
+            flex: 1;
+        }
+
+        .rule-side.then-side {
+            flex: 1;
+        }
+
+        .rule-divider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+            color: var(--text-muted);
+            font-size: 14px;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .rule-side select,
+        .rule-side input {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 11px;
+            background: #fff;
+            transition: border-color var(--transition-fast);
+            flex-shrink: 0;
+        }
+
+        .rule-side select:focus,
+        .rule-side input:focus {
+            border-color: var(--accent-sub);
+            outline: none;
+        }
+
+        .rule-side select {
+            min-width: 100px;
+            max-width: 160px;
+        }
+
+        .rule-side .tag-wrap {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .rule-actions-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            min-width: 40px;
+            border-left: 1px solid var(--border);
+        }
+
+        .rule-actions-cell .rule-delete {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 16px;
+            border-radius: var(--radius-sm);
+            transition: all var(--transition-fast);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.4;
+        }
+
+        .rule-card:hover .rule-delete {
+            opacity: 1;
+        }
+
+        .rule-actions-cell .rule-delete:hover {
+            color: var(--accent-danger);
+            background: var(--accent-danger-light);
+            opacity: 1;
+        }
+
+        .rule-side-label {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+            writing-mode: horizontal-tb;
+            white-space: nowrap;
+            flex-shrink: 0;
+            user-select: none;
+            min-width: 24px;
+        }
+
+        .rules-actions {
+            padding: 12px 24px;
+            display: flex;
+            gap: 8px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        /* AUTOCOMPLETE */
+        /* TAG INPUT */
+        .tag-wrap {
+            position: relative;
+        }
+
+        .tag-box {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            align-items: center;
+            padding: 4px 6px;
+            min-height: 32px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: #fff;
+            cursor: text;
+        }
+
+        .tag-box:focus-within {
+            border-color: var(--accent-sub);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+        }
+
+        .tag-box.disabled {
+            background: var(--bg-secondary);
+            cursor: default;
+            opacity: 0.5;
+        }
+
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 10px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-primary);
+            white-space: nowrap;
+        }
+
+        .tag-chip.special {
+            background: var(--accent-sub-light);
+            border-color: rgba(37, 99, 235, 0.2);
+            color: var(--accent-sub);
+        }
+
+        .tag-chip .tag-x {
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-left: 2px;
+            line-height: 1;
+        }
+
+        .tag-chip .tag-x:hover {
+            color: var(--accent-danger);
+        }
+
+        .tag-input {
+            border: none;
+            outline: none;
+            font-family: inherit;
+            font-size: 11px;
+            flex: 1;
+            min-width: 50px;
+            padding: 2px 4px;
+            background: transparent;
+        }
+
+        .ac-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 160px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-sm);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            z-index: 100;
+            margin-top: 2px;
+        }
+
+        .ac-item {
+            padding: 6px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .ac-item:last-child {
+            border-bottom: none;
+        }
+
+        .ac-item:hover,
+        .ac-item.ac-active {
+            background: var(--accent-sub-light);
+            color: var(--text-primary);
+        }
+
+        .ac-item .ac-match {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .ac-item.ac-special {
+            color: var(--accent-sub);
+            font-style: italic;
+        }
+
+        /* RESULTS */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .summary-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            text-align: center;
+        }
+
+        .summary-card .value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .summary-card .label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        .summary-card.danger .value {
+            color: var(--accent-danger);
+        }
+
+        .summary-card.warn .value {
+            color: var(--accent-warn);
+        }
+
+        .summary-card.success .value {
+            color: var(--accent-success);
+        }
+
+        .summary-card.blue .value {
+            color: var(--accent-sub);
+        }
+
+        .issues-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .issues-bar .bar-segment {
+            height: 6px;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-chip {
+            padding: 5px 14px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            background: #fff;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .filter-chip:hover {
+            border-color: var(--border-strong);
+        }
+
+        .filter-chip.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        .issues-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .issues-table th {
+            text-align: left;
+            padding: 8px 12px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .issues-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+            vertical-align: top;
+        }
+
+        .issues-table tbody tr:hover {
+            background: var(--bg-hover);
+        }
+
+        .issues-wrap {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .sev-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 100px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sev-badge.error {
+            color: var(--accent-danger);
+            background: var(--accent-danger-light);
+        }
+
+        .sev-badge.warning {
+            color: #d97706;
+            background: #fef3c7;
+        }
+
+        .sev-badge.info {
+            color: var(--accent-sub);
+            background: var(--accent-sub-light);
+            border: 1px solid rgba(37, 99, 235, 0.15);
+        }
+
+        /* SPREADSHEET TABLE */
+        .sheet-preview-wrap {
+            overflow-x: auto;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            max-height: 520px;
+        }
+
+        .sheet-preview {
+            border-collapse: collapse;
+            font-size: 11px;
+            table-layout: auto;
+            width: max-content;
+            min-width: 100%;
+        }
+
+        .sheet-preview th {
+            background: #333;
+            color: #fff;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 8px 14px;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            white-space: nowrap;
+            border-right: 1px solid #444;
+        }
+
+        .sheet-preview th:last-child {
+            border-right: none;
+        }
+
+        .sheet-preview th.check-hdr {
+            background: #00A99D;
+            border-right-color: #009688;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .sheet-preview td {
+            padding: 5px 14px;
+            border-bottom: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 11px;
+            white-space: nowrap;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sheet-preview td:last-child {
+            border-right: none;
+        }
+
+        .sheet-preview tbody tr:hover td {
+            background: var(--bg-secondary);
+        }
+
+        .sheet-preview td.cell-error {
+            color: var(--accent-danger);
+            font-weight: 700;
+            text-align: center;
+            background: var(--accent-danger-light);
+        }
+
+        .sheet-preview tbody tr:hover td.cell-error {
+            background: #fecaca;
+        }
+
+        .sheet-preview td.cell-warn {
+            color: var(--accent-warn);
+            font-weight: 700;
+            text-align: center;
+            background: var(--accent-warn-light);
+        }
+
+        .sheet-preview tbody tr:hover td.cell-warn {
+            background: #fde68a;
+        }
+
+        .sheet-preview td.cell-dup {
+            color: #7c3aed;
+            font-weight: 700;
+            text-align: center;
+            background: #ede9fe;
+        }
+
+        .sheet-preview tbody tr:hover td.cell-dup {
+            background: #ddd6fe;
+        }
+
+        /* SHEET PICKER MODAL */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal {
+            background: #fff;
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .modal.modal-wide {
+            max-width: 560px;
+        }
+
+        .conflict-item {
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            background: var(--accent-warn-light);
+            border: 1px solid rgba(217, 119, 6, 0.2);
+            border-radius: var(--radius-md);
+            font-size: 12px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        .conflict-item strong {
+            color: var(--text-primary);
+        }
+
+        .conflict-item .conflict-rules {
+            font-weight: 700;
+            color: var(--accent-warn);
+        }
+
+        .modal .modal-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .modal h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .modal .sheet-btn {
+            display: block;
+            width: 100%;
+            padding: 10px 16px;
+            margin-bottom: 8px;
+            text-align: left;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: #fff;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+            transition: all var(--transition-fast);
+        }
+
+        .modal .sheet-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-strong);
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        @media (max-width: 768px) {
+            .app-container {
+                padding: 24px 16px;
+            }
+
+            .upload-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .map-group-body {
+                grid-template-columns: 1fr;
+            }
+
+            .rule-row {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <div class="app-header">
+            <div class="brand">Finish Tools</div>
+            <h1>Finish QAQC Auditor</h1>
+            <div class="subtitle">Audit room finish sheets for errors and rule violations before template analysis</div>
+        </div>
+
+        <div class="stage-indicator">
+            <div class="stage-dot active" id="dot-1">1</div>
+            <span class="stage-label">Upload</span>
+            <div class="stage-conn" id="conn-1"></div>
+            <div class="stage-dot" id="dot-2">2</div>
+            <span class="stage-label">Map Columns</span>
+            <div class="stage-conn" id="conn-2"></div>
+            <div class="stage-dot" id="dot-3">3</div>
+            <span class="stage-label">Define Rules</span>
+            <div class="stage-conn" id="conn-3"></div>
+            <div class="stage-dot" id="dot-4">4</div>
+            <span class="stage-label">Audit Results</span>
+        </div>
+
+        <!-- STAGE 1: UPLOAD -->
+        <div class="stage active" id="stage-upload">
+            <div class="section-intro">
+                <h3>Upload Your Files</h3>
+                <p>Upload the room sheet you want to audit and the reference list of valid finish abbreviations. Both
+                    files are needed to cross-check values.</p>
+            </div>
+            <div class="upload-grid">
+                <div>
+                    <div class="drop-zone" id="dropRoom">
+                        <div class="upload-icon">&#8593;</div>
+                        <div class="dz-title">Room Sheet</div>
+                        <div class="dz-hint">dRofus room export (.xlsx, .csv)</div>
+                        <div class="dz-desc">The room data with finish columns like Floor, Base, Wall, Ceiling Material,
+                            and Ceiling Finish</div>
+                        <div class="dz-file" id="roomFileName" style="display:none"></div>
+                    </div>
+                    <input type="file" id="fileRoom" accept=".csv,.xlsx,.xls" style="display:none">
+                </div>
+                <div>
+                    <div class="drop-zone" id="dropRef">
+                        <div class="upload-icon">&#8593;</div>
+                        <div class="dz-title">BIM ID Reference</div>
+                        <div class="dz-hint">Finishes item list (.xlsx, .csv)</div>
+                        <div class="dz-desc">The master list of valid finish abbreviations (BIM IDs) that room values
+                            will be checked against</div>
+                        <div class="dz-file" id="refFileName" style="display:none"></div>
+                    </div>
+                    <input type="file" id="fileRef" accept=".csv,.xlsx,.xls" style="display:none">
+                </div>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="btnToMap" style="display:none">Continue to Column Mapping</button>
+            </div>
+        </div>
+
+        <!-- STAGE 2: MAP COLUMNS -->
+        <div class="stage" id="stage-map">
+            <div class="file-banner">
+                <div class="dot"></div>
+                <span class="name" id="bannerRoom"></span>
+                <span class="meta" id="bannerRoomMeta"></span>
+            </div>
+            <div class="section-intro">
+                <h3>Map Your Columns</h3>
+                <p>Tell us which columns in your room sheet contain finish data, and which column in the reference file
+                    holds the valid BIM IDs. We've auto-detected what we could.</p>
+            </div>
+            <div class="map-groups" id="mapGrid"></div>
+            <div class="btn-row">
+                <button class="btn" id="btnBackToUpload">Back</button>
+                <button class="btn btn-primary" id="btnToRules">Continue to Rules</button>
+            </div>
+        </div>
+
+        <!-- STAGE 3: RULES -->
+        <div class="stage" id="stage-rules">
+            <div class="file-banner">
+                <div class="dot"></div>
+                <span class="name" id="bannerRoom2"></span>
+                <span class="meta" id="bannerRoomMeta2"></span>
+            </div>
+            <div class="section-intro">
+                <h3>Define Audit Rules</h3>
+                <p>Rules define relationships between finish columns. They are checked row-by-row during the audit.
+                    Default rules are pre-loaded — edit, add, or remove them as needed for your project.</p>
+            </div>
+            <div class="rules-panel">
+                <div class="rules-header">
+                    <h3>Audit Rules</h3>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-sm btn-primary" id="btnAddRule">+ Add Rule</button>
+                    </div>
+                </div>
+                <div class="rules-body" id="rulesContainer"></div>
+                <div class="rules-actions">
+                    <div style="font-size:11px;color:var(--text-muted);flex:1;">Rules are saved per session. Default
+                        rules are pre-loaded for your project.</div>
+                </div>
+            </div>
+            <div class="btn-row">
+                <button class="btn" id="btnBackToMap">Back</button>
+                <button class="btn btn-primary" id="btnRunAudit">Run Audit</button>
+            </div>
+        </div>
+
+        <!-- STAGE 4: RESULTS -->
+        <div class="stage" id="stage-results">
+            <div class="file-banner">
+                <div class="dot"></div>
+                <span class="name" id="bannerRoom3"></span>
+                <span class="meta" id="bannerRoomMeta3"></span>
+            </div>
+            <div class="section-intro">
+                <h3>Audit Results</h3>
+                <p>Every finish value was checked against the BIM ID reference list, and all rules were evaluated
+                    row-by-row. The table below mirrors your exported spreadsheet.</p>
+            </div>
+            <div class="summary-grid" id="summaryGrid"></div>
+            <div class="filter-row" id="filterRow"></div>
+            <div class="sheet-preview-wrap">
+                <table class="sheet-preview" id="sheetPreview"></table>
+            </div>
+            <div class="btn-row">
+                <button class="btn" id="btnBackToRules">Back to Rules</button>
+                <button class="btn btn-primary" id="btnExportAudit">Export Audit Report</button>
+                <button class="btn" id="btnReset">New Audit</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const $ = id => document.getElementById(id);
+
+        /* ── STATE ── */
+        let roomData = [], roomHeaders = [], roomFileName = '';
+        let refData = [], refHeaders = [], refFileName = '';
+        let validBimIds = new Set();
+        let columnMap = { floor: null, base: null, wall: null, ceilMat: null, ceilFin: null };
+        let refBimCol = null;
+        let rules = [];
+        let auditIssues = [];
+
+        /* ── NAVIGATION ── */
+        const allStages = ['stage-upload', 'stage-map', 'stage-rules', 'stage-results'].map(id => $(id));
+        function goToStage(n) {
+            allStages.forEach((s, i) => s.classList.toggle('active', i === n - 1));
+            for (let i = 1; i <= 4; i++) {
+                const dot = $('dot-' + i);
+                dot.classList.remove('active', 'done');
+                if (i < n) dot.classList.add('done');
+                else if (i === n) dot.classList.add('active');
+            }
+            for (let i = 1; i <= 3; i++) {
+                $('conn-' + i).classList.toggle('done', i < n);
+            }
+        }
+
+        /* ── STAGE 1: FILE UPLOAD ── */
+        function setupDropZone(dropId, fileId, type) {
+            const dz = $(dropId), fi = $(fileId);
+            dz.addEventListener('click', () => fi.click());
+            dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+            dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+            dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0], type); });
+            fi.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0], type); });
+        }
+        setupDropZone('dropRoom', 'fileRoom', 'room');
+        setupDropZone('dropRef', 'fileRef', 'ref');
+
+        function loadFile(file, type) {
+            const name = file.name.toLowerCase();
+            const isExcel = name.endsWith('.xlsx') || name.endsWith('.xls');
+            const isCsv = name.endsWith('.csv');
+            if (!isExcel && !isCsv) { alert('Please upload a CSV or Excel file.'); return; }
+
+            if (isCsv) {
+                Papa.parse(file, {
+                    header: true, skipEmptyLines: true,
+                    complete: r => onFileLoaded(type, r.data, (r.meta.fields || []).filter(h => h.trim()), file.name),
+                    error: err => alert('CSV error: ' + err.message)
+                });
+            } else {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const wb = XLSX.read(e.target.result, { type: 'array' });
+                    if (wb.SheetNames.length === 1) {
+                        parseSheet(wb, wb.SheetNames[0], type, file.name);
+                    } else {
+                        showSheetPicker(wb, type, file.name);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        function parseSheet(wb, sheetName, type, fileName) {
+            const ws = wb.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            const headers = json.length ? Object.keys(json[0]).filter(h => h.trim()) : [];
+            onFileLoaded(type, json, headers, fileName + ' → ' + sheetName);
+        }
+
+        function showSheetPicker(wb, type, fileName) {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.innerHTML = `<h3>Select Sheet</h3>`;
+            wb.SheetNames.forEach(sn => {
+                const btn = document.createElement('button');
+                btn.className = 'sheet-btn';
+                btn.textContent = sn;
+                btn.addEventListener('click', () => { document.body.removeChild(overlay); parseSheet(wb, sn, type, fileName); });
+                modal.appendChild(btn);
+            });
+            overlay.appendChild(modal);
+            overlay.addEventListener('click', e => { if (e.target === overlay) document.body.removeChild(overlay); });
+            document.body.appendChild(overlay);
+        }
+
+        function onFileLoaded(type, data, headers, displayName) {
+            if (type === 'room') {
+                roomData = data; roomHeaders = headers; roomFileName = displayName;
+                $('dropRoom').classList.add('loaded');
+                const fn = $('roomFileName'); fn.textContent = '✓ ' + displayName; fn.style.display = '';
+            } else {
+                refData = data; refHeaders = headers; refFileName = displayName;
+                $('dropRef').classList.add('loaded');
+                const fn = $('refFileName'); fn.textContent = '✓ ' + displayName; fn.style.display = '';
+            }
+            $('btnToMap').style.display = (roomData.length && refData.length) ? '' : 'none';
+        }
+
+        /* ── STAGE 2: COLUMN MAPPING ── */
+        $('btnToMap').addEventListener('click', () => { buildMapUI(); goToStage(2); });
+        $('btnBackToUpload').addEventListener('click', () => { $('fileRoom').value = ''; $('fileRef').value = ''; goToStage(1); });
+
+        function buildMapUI() {
+            $('bannerRoom').textContent = roomFileName;
+            $('bannerRoomMeta').textContent = `${roomData.length} rows, ${roomHeaders.length} columns`;
+            const container = $('mapGrid');
+            container.innerHTML = '';
+
+            // Auto-detect columns
+            const autoMap = {};
+            const synonyms = {
+                floor: ['floor finish', 'floor'],
+                base: ['floor base', 'base'],
+                wall: ['wall finish', 'wall'],
+                ceilMat: ['ceiling material', 'ceiling mat'],
+                ceilFin: ['ceiling finish'],
+            };
+            roomHeaders.forEach(h => {
+                const lower = h.toLowerCase().trim();
+                for (const [key, terms] of Object.entries(synonyms)) {
+                    if (!autoMap[key] && terms.some(t => lower === t || lower.includes(t))) {
+                        autoMap[key] = h;
+                    }
+                }
+            });
+
+            function makeSelect(id, headers, autoVal) {
+                const sel = document.createElement('select');
+                sel.id = id;
+                sel.innerHTML = '<option value="">— Select Column —</option>' +
+                    headers.map(h => `<option value="${escHtml(h)}" ${autoVal === h ? 'selected' : ''}>${escHtml(h)}</option>`).join('');
+                return sel;
+            }
+
+            function makeCard(label, selectEl) {
+                const card = document.createElement('div');
+                card.className = 'map-card';
+                card.innerHTML = `<h4>${label}</h4>`;
+                card.appendChild(selectEl);
+                return card;
+            }
+
+            function makeGroup(title, items, single) {
+                const group = document.createElement('div');
+                group.className = 'map-group';
+                group.innerHTML = `<div class="map-group-header">${title}</div>`;
+                const body = document.createElement('div');
+                body.className = 'map-group-body' + (single ? ' single' : '');
+                items.forEach(item => body.appendChild(item));
+                group.appendChild(body);
+                return group;
+            }
+
+            // Group 1: Finish Columns
+            const finishCards = [
+                makeCard('Floor / Floor Finish', makeSelect('map-floor', roomHeaders, autoMap.floor)),
+                makeCard('Base / Floor Base', makeSelect('map-base', roomHeaders, autoMap.base)),
+                makeCard('Wall / Wall Finish', makeSelect('map-wall', roomHeaders, autoMap.wall)),
+                makeCard('Ceiling Material', makeSelect('map-ceilMat', roomHeaders, autoMap.ceilMat)),
+                makeCard('Ceiling Finish', makeSelect('map-ceilFin', roomHeaders, autoMap.ceilFin)),
+            ];
+            container.appendChild(makeGroup('Finish Columns — Room Sheet', finishCards, false));
+
+            // Group 3: BIM Reference
+            const autoRef = refHeaders.find(h => h.toLowerCase().includes('bim id')) || refHeaders.find(h => h.toLowerCase().includes('bim')) || '';
+            const refCard = makeCard(`BIM ID Column — ${escHtml(refFileName)}`, makeSelect('map-bimId', refHeaders, autoRef));
+            container.appendChild(makeGroup('Reference File', [refCard], true));
+        }
+
+        /* ── STAGE 3: RULES ── */
+        $('btnToRules').addEventListener('click', () => {
+            // Save column mapping
+            columnMap.floor = $('map-floor').value || null;
+            columnMap.base = $('map-base').value || null;
+            columnMap.wall = $('map-wall').value || null;
+            columnMap.ceilMat = $('map-ceilMat').value || null;
+            columnMap.ceilFin = $('map-ceilFin').value || null;
+            refBimCol = $('map-bimId').value || null;
+
+            // Build valid BIM IDs set
+            validBimIds = new Set();
+            if (refBimCol) {
+                refData.forEach(row => {
+                    const v = String(row[refBimCol] ?? '').trim();
+                    if (v) validBimIds.add(v.toUpperCase());
+                });
+            }
+
+            $('bannerRoom2').textContent = roomFileName;
+            $('bannerRoomMeta2').textContent = `${roomData.length} rows · ${validBimIds.size} valid BIM IDs`;
+
+            if (rules.length === 0) addDefaultRules();
+            renderRules();
+            goToStage(3);
+        });
+        $('btnBackToMap').addEventListener('click', () => goToStage(2));
+
+        function addDefaultRules() {
+            const finishCols = getFinishColNames();
+            // Default: finish columns required (blank = error), except ceiling finish
+            // Ceiling finish is governed by the conditional rules below
+            finishCols.filter(col => col !== columnMap.ceilFin).forEach(col => {
+                rules.push({ ifCol: col, ifVal: '(blank)', thenCol: '', mustBe: 'HAVE_VALUE', thenVal: '' });
+            });
+            // Conditional: ceiling material → ceiling finish relationships
+            if (columnMap.ceilMat && columnMap.ceilFin) {
+                const gbIds = [...validBimIds].filter(v => /^(GB|GWB|ARGB)/i.test(v));
+                const actIds = [...validBimIds].filter(v => /^ACT/i.test(v));
+                const expIds = [...validBimIds].filter(v => /^EXP/i.test(v));
+                if (gbIds.length) rules.push({ ifCol: columnMap.ceilMat, ifVal: gbIds.join(' OR '), matchMode: 'any', thenCol: columnMap.ceilFin, mustBe: 'HAVE_VALUE', thenVal: '' });
+                if (actIds.length) rules.push({ ifCol: columnMap.ceilMat, ifVal: actIds.join(' OR '), matchMode: 'only', thenCol: columnMap.ceilFin, mustBe: 'BE_BLANK', thenVal: '' });
+                if (expIds.length) rules.push({ ifCol: columnMap.ceilMat, ifVal: expIds.join(' OR '), thenCol: columnMap.ceilFin, mustBe: 'BE_VALUE', thenVal: 'SCON-1-01' });
+            }
+        }
+
+        function getFinishColNames() {
+            return [columnMap.floor, columnMap.base, columnMap.wall, columnMap.ceilMat, columnMap.ceilFin].filter(Boolean);
+        }
+
+        function renderRules() {
+            const container = $('rulesContainer');
+            container.innerHTML = '';
+            const finishCols = getFinishColNames();
+
+            rules.forEach((rule, idx) => {
+                const card = document.createElement('div');
+                card.className = 'rule-card';
+
+                // Plain-English description element (created early so refreshDesc works)
+                const desc = document.createElement('div');
+                desc.className = 'rule-desc';
+                desc.textContent = getRuleDescription(rule);
+                function refreshDesc() {
+                    desc.textContent = getRuleDescription(rules[idx]);
+                }
+
+                // Rule number badge
+                const badge = document.createElement('div');
+                badge.className = 'rule-badge';
+                badge.textContent = idx + 1;
+                card.appendChild(badge);
+
+                // IF side
+                const ifSide = document.createElement('div');
+                ifSide.className = 'rule-side if-side';
+
+                const ifLabel = document.createElement('span');
+                ifLabel.className = 'rule-side-label';
+                ifLabel.textContent = 'IF';
+                ifSide.appendChild(ifLabel);
+
+                const selIf = document.createElement('select');
+                selIf.innerHTML = finishCols.map(c => `<option value="${escHtml(c)}" ${rule.ifCol === c ? 'selected' : ''}>${escHtml(c)}</option>`).join('');
+                selIf.addEventListener('change', () => { rules[idx].ifCol = selIf.value; refreshDesc(); });
+                ifSide.appendChild(selIf);
+
+                const selMatch = document.createElement('select');
+                selMatch.innerHTML = `
+                    <option value="any" ${rule.matchMode !== 'only' ? 'selected' : ''}>has any</option>
+                    <option value="only" ${rule.matchMode === 'only' ? 'selected' : ''}>has only</option>
+                `;
+                selMatch.addEventListener('change', () => { rules[idx].matchMode = selMatch.value; refreshDesc(); });
+                ifSide.appendChild(selMatch);
+
+                const tagInput1 = createTagInput(idx, 'ifVal', null, refreshDesc);
+                ifSide.appendChild(tagInput1);
+                card.appendChild(ifSide);
+
+                // Arrow divider
+                const divider = document.createElement('div');
+                divider.className = 'rule-divider';
+                divider.textContent = '→';
+                card.appendChild(divider);
+
+                // THEN side
+                const thenSide = document.createElement('div');
+                thenSide.className = 'rule-side then-side';
+
+                const thenLabel = document.createElement('span');
+                thenLabel.className = 'rule-side-label';
+                thenLabel.textContent = 'THEN';
+                thenSide.appendChild(thenLabel);
+
+                const selThen = document.createElement('select');
+                selThen.innerHTML = '<option value="">— same —</option>' + finishCols.map(c => `<option value="${escHtml(c)}" ${rule.thenCol === c ? 'selected' : ''}>${escHtml(c)}</option>`).join('');
+                selThen.addEventListener('change', () => { rules[idx].thenCol = selThen.value; refreshDesc(); });
+                thenSide.appendChild(selThen);
+
+                const selMust = document.createElement('select');
+                selMust.innerHTML = `
+                    <option value="HAVE_VALUE" ${rule.mustBe === 'HAVE_VALUE' ? 'selected' : ''}>have a value</option>
+                    <option value="BE_BLANK" ${rule.mustBe === 'BE_BLANK' ? 'selected' : ''}>be blank</option>
+                    <option value="BE_VALUE" ${rule.mustBe === 'BE_VALUE' ? 'selected' : ''}>be exactly</option>
+                `;
+                selMust.addEventListener('change', () => { rules[idx].mustBe = selMust.value; refreshDesc(); });
+                thenSide.appendChild(selMust);
+
+                const tagInput2 = createTagInput(idx, 'thenVal', () => selMust.value !== 'BE_VALUE', refreshDesc);
+                selMust.addEventListener('change', () => {
+                    const box = tagInput2.querySelector('.tag-box');
+                    box.classList.toggle('disabled', selMust.value !== 'BE_VALUE');
+                    const inp = tagInput2.querySelector('.tag-input');
+                    if (inp) inp.disabled = selMust.value !== 'BE_VALUE';
+                });
+                thenSide.appendChild(tagInput2);
+                card.appendChild(thenSide);
+
+                // Delete action cell
+                const actionsCell = document.createElement('div');
+                actionsCell.className = 'rule-actions-cell';
+                const btnDel = document.createElement('button');
+                btnDel.className = 'rule-delete';
+                btnDel.innerHTML = '×';
+                btnDel.addEventListener('click', () => { rules.splice(idx, 1); renderRules(); });
+                actionsCell.appendChild(btnDel);
+                card.appendChild(actionsCell);
+
+                // Append description at the bottom of the card
+                card.appendChild(desc);
+
+                container.appendChild(card);
+            });
+        }
+
+        function getRuleDescription(rule) {
+            const ifCol = rule.ifCol || '?';
+            const ifVal = rule.ifVal || '';
+            const thenCol = rule.thenCol || '';
+            const mustBe = rule.mustBe || 'HAVE_VALUE';
+            const matchMode = rule.matchMode || 'any';
+            const thenVal = rule.thenVal || '';
+            const sameCol = !thenCol || thenCol === ifCol;
+
+            // IF side: describe the condition
+            let condition;
+            if (ifVal === '(blank)') {
+                condition = `${ifCol} is empty`;
+            } else if (ifVal === '(any)') {
+                condition = `${ifCol} has any value`;
+            } else {
+                const vals = ifVal.split(/\s+OR\s+/i).map(s => s.trim()).filter(Boolean);
+                const joined = vals.length > 3 ? vals.slice(0, 3).join(', ') + '…' : vals.join(', ');
+                condition = matchMode === 'only'
+                    ? `${ifCol} is only ${joined}`
+                    : `${ifCol} contains ${joined}`;
+            }
+
+            // THEN side: describe the requirement
+            let requirement;
+            const target = sameCol ? 'it' : thenCol;
+            if (mustBe === 'HAVE_VALUE') {
+                requirement = sameCol ? `${ifCol} must not be empty` : `${thenCol} must also have a value`;
+            } else if (mustBe === 'BE_BLANK') {
+                requirement = `${target} should be left blank`;
+            } else if (mustBe === 'BE_VALUE') {
+                requirement = `${target} must be "${thenVal}"`;
+            }
+
+            // Combine
+            if (sameCol && ifVal === '(blank)' && mustBe === 'HAVE_VALUE') {
+                return `${ifCol} must not be empty.`;
+            }
+            return `When ${condition}, ${requirement}.`;
+        }
+
+        /* ── TAG INPUT ── */
+        function createTagInput(ruleIdx, ruleKey, isDisabledFn, onChange) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'tag-wrap';
+
+            const box = document.createElement('div');
+            box.className = 'tag-box';
+            const disabled = isDisabledFn ? isDisabledFn() : false;
+            if (disabled) box.classList.add('disabled');
+
+            const input = document.createElement('input');
+            input.className = 'tag-input';
+            input.placeholder = 'search…';
+            input.disabled = disabled;
+
+            // Parse existing values into tags
+            const currentVal = rules[ruleIdx][ruleKey] || '';
+            const existingTags = currentVal ? currentVal.split(/\s+OR\s+/i).map(s => s.trim()).filter(Boolean) : [];
+
+            function syncToRule() {
+                const chips = box.querySelectorAll('.tag-chip');
+                const vals = [...chips].map(c => c.dataset.val);
+                rules[ruleIdx][ruleKey] = vals.join(' OR ');
+                if (onChange) onChange();
+            }
+
+            function addTag(val) {
+                // Don't add duplicates
+                const chips = box.querySelectorAll('.tag-chip');
+                const existing = [...chips].map(c => c.dataset.val.toUpperCase());
+                if (existing.includes(val.toUpperCase())) return;
+
+                const chip = document.createElement('span');
+                chip.className = 'tag-chip' + (val.startsWith('(') ? ' special' : '');
+                chip.dataset.val = val;
+                chip.innerHTML = `${escHtml(val)}<span class="tag-x">×</span>`;
+                chip.querySelector('.tag-x').addEventListener('click', () => {
+                    chip.remove();
+                    syncToRule();
+                });
+                box.insertBefore(chip, input);
+                syncToRule();
+            }
+
+            box.appendChild(input);
+            existingTags.forEach(t => addTag(t));
+            box.addEventListener('click', () => { if (!disabled) input.focus(); });
+            wrapper.appendChild(box);
+
+            // Dropdown
+            let dropdown = null;
+            let activeIdx = -1;
+
+            function getSuggestions(query) {
+                const q = query.toUpperCase().trim();
+                const specials = ['(blank)', '(any)'];
+                const bimArr = [...validBimIds].sort();
+                const all = [...specials, ...bimArr];
+                // Filter out already-added tags
+                const chips = box.querySelectorAll('.tag-chip');
+                const used = new Set([...chips].map(c => c.dataset.val.toUpperCase()));
+                const available = all.filter(v => !used.has(v.toUpperCase()));
+                if (!q) return available.slice(0, 20);
+                return available.filter(v => v.toUpperCase().includes(q)).slice(0, 20);
+            }
+
+            function showDropdown() {
+                hideDropdown();
+                if (disabled) return;
+                const query = input.value.trim();
+                const matches = getSuggestions(query);
+                if (!matches.length) return;
+
+                dropdown = document.createElement('div');
+                dropdown.className = 'ac-dropdown';
+                activeIdx = -1;
+
+                matches.forEach(val => {
+                    const item = document.createElement('div');
+                    item.className = 'ac-item' + (val.startsWith('(') ? ' ac-special' : '');
+
+                    const upperQ = query.toUpperCase();
+                    const matchPos = val.toUpperCase().indexOf(upperQ);
+                    if (query && matchPos >= 0) {
+                        item.innerHTML = escHtml(val.slice(0, matchPos)) +
+                            '<span class="ac-match">' + escHtml(val.slice(matchPos, matchPos + query.length)) + '</span>' +
+                            escHtml(val.slice(matchPos + query.length));
+                    } else {
+                        item.textContent = val;
+                    }
+
+                    item.addEventListener('mousedown', e => {
+                        e.preventDefault();
+                        addTag(val);
+                        input.value = '';
+                        hideDropdown();
+                        input.focus();
+                    });
+                    dropdown.appendChild(item);
+                });
+
+                wrapper.appendChild(dropdown);
+            }
+
+            function hideDropdown() {
+                if (dropdown && dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
+                dropdown = null;
+                activeIdx = -1;
+            }
+
+            input.addEventListener('focus', showDropdown);
+            input.addEventListener('input', showDropdown);
+            input.addEventListener('blur', () => {
+                setTimeout(() => { hideDropdown(); input.value = ''; }, 150);
+            });
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Backspace' && !input.value) {
+                    // Remove last tag
+                    const chips = box.querySelectorAll('.tag-chip');
+                    if (chips.length) {
+                        chips[chips.length - 1].remove();
+                        syncToRule();
+                    }
+                    return;
+                }
+                if (!dropdown) return;
+                const items = dropdown.querySelectorAll('.ac-item');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeIdx = Math.min(activeIdx + 1, items.length - 1);
+                    items.forEach((it, i) => it.classList.toggle('ac-active', i === activeIdx));
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeIdx = Math.max(activeIdx - 1, 0);
+                    items.forEach((it, i) => it.classList.toggle('ac-active', i === activeIdx));
+                } else if (e.key === 'Enter' && activeIdx >= 0) {
+                    e.preventDefault();
+                    items[activeIdx].dispatchEvent(new MouseEvent('mousedown'));
+                } else if (e.key === 'Escape') {
+                    hideDropdown();
+                }
+            });
+
+            return wrapper;
+        }
+
+        $('btnAddRule').addEventListener('click', () => {
+            const finishCols = getFinishColNames();
+            rules.push({ ifCol: finishCols[0] || '', ifVal: '(any)', thenCol: '', mustBe: 'HAVE_VALUE', thenVal: '' });
+            renderRules();
+        });
+
+
+
+        /* ── AUDIT ENGINE ── */
+        $('btnRunAudit').addEventListener('click', () => {
+            const conflicts = findConflicts();
+            if (conflicts.length > 0) {
+                showConflictModal(conflicts);
+                return;
+            }
+            runAudit(); goToStage(4);
+        });
+
+        function findConflicts() {
+            const conflicts = [];
+            for (let i = 0; i < rules.length; i++) {
+                for (let j = i + 1; j < rules.length; j++) {
+                    const a = rules[i], b = rules[j];
+                    // Both must target the same THEN column
+                    const aTarget = a.thenCol || a.ifCol;
+                    const bTarget = b.thenCol || b.ifCol;
+                    if (aTarget !== bTarget) continue;
+                    // Both must watch the same IF column
+                    if (a.ifCol !== b.ifCol) continue;
+                    // Their mustBe must actually conflict
+                    const conflict = getConflictType(a.mustBe, a.thenVal, b.mustBe, b.thenVal);
+                    if (!conflict) continue;
+                    // Their IF values must overlap (could both fire on the same row)
+                    if (!ifValuesOverlap(a.ifVal, a.matchMode, b.ifVal, b.matchMode)) continue;
+                    conflicts.push({ ruleA: i, ruleB: j, target: aTarget, reason: conflict });
+                }
+            }
+            return conflicts;
+        }
+
+        function getConflictType(mustA, valA, mustB, valB) {
+            const pair = [mustA, mustB].sort().join('+');
+            if (pair === 'BE_BLANK+HAVE_VALUE') return 'one requires a value, the other requires it blank';
+            if (pair === 'BE_BLANK+BE_VALUE') return `one requires it blank, the other requires "${valB || valA}"`;
+            if (mustA === 'BE_VALUE' && mustB === 'BE_VALUE') {
+                const aVals = new Set(parseOrValues(valA).map(v => v.toUpperCase()));
+                const bVals = parseOrValues(valB).map(v => v.toUpperCase());
+                const overlap = bVals.some(v => aVals.has(v));
+                if (!overlap) return `one requires "${valA}" but the other requires "${valB}"`;
+            }
+            return null;
+        }
+
+        function ifValuesOverlap(ifValA, modeA, ifValB, modeB) {
+            const a = ifValA.trim(), b = ifValB.trim();
+            // (blank) only overlaps with (blank)
+            if (a === '(blank)' && b === '(blank)') return true;
+            if (a === '(blank)' || b === '(blank)') return false;
+            // (any) overlaps with everything non-blank
+            if (a === '(any)' || b === '(any)') return true;
+            const aVals = parseOrValues(a).map(v => v.toUpperCase());
+            const bVals = new Set(parseOrValues(b).map(v => v.toUpperCase()));
+            // If any value appears in both, there's a potential row where both fire
+            // Also check (any) within OR lists
+            if (aVals.includes('(ANY)') || bVals.has('(ANY)')) return true;
+            return aVals.some(v => bVals.has(v));
+        }
+
+        function showConflictModal(conflicts) {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            const modal = document.createElement('div');
+            modal.className = 'modal modal-wide';
+            let html = `<h3>⚠️ Conflicting Rules</h3>`;
+            html += `<p class="modal-subtitle">The following rules contradict each other. A row matching both would always produce an error regardless of its data. Please fix or remove one rule from each pair.</p>`;
+            conflicts.forEach(c => {
+                html += `<div class="conflict-item">`;
+                html += `<span class="conflict-rules">Rule ${c.ruleA + 1} ↔ Rule ${c.ruleB + 1}</span>`;
+                html += ` — both target <strong>${escHtml(c.target)}</strong><br>`;
+                html += `${c.reason}`;
+                html += `</div>`;
+            });
+            html += `<div class="btn-row" style="justify-content:flex-end;"><button class="btn btn-primary" id="btnCloseConflict">Got It</button></div>`;
+            modal.innerHTML = html;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            modal.querySelector('#btnCloseConflict').addEventListener('click', () => document.body.removeChild(overlay));
+            overlay.addEventListener('click', e => { if (e.target === overlay) document.body.removeChild(overlay); });
+        }
+        $('btnBackToRules').addEventListener('click', () => goToStage(3));
+        $('btnReset').addEventListener('click', () => {
+            roomData = []; roomHeaders = []; refData = []; refHeaders = []; rules = []; auditIssues = [];
+            validBimIds.clear(); dupMap = {}; dupCols = new Set();
+            $('dropRoom').classList.remove('loaded'); $('dropRef').classList.remove('loaded');
+            $('roomFileName').style.display = 'none'; $('refFileName').style.display = 'none';
+            $('btnToMap').style.display = 'none';
+            $('fileRoom').value = ''; $('fileRef').value = '';
+            goToStage(1);
+        });
+
+        function parseOrValues(str) {
+            if (!str) return [];
+            return str.split(/\s+OR\s+/i).map(s => s.trim()).filter(Boolean);
+        }
+
+        function matchesCondition(cellValue, conditionStr, matchMode) {
+            const trimmed = String(cellValue ?? '').trim();
+            const cond = conditionStr.trim();
+            if (cond === '(any)') return trimmed.length > 0;
+            if (cond === '(blank)') return trimmed.length === 0;
+            const condVals = parseOrValues(cond);
+            // Split cell on commas to handle multi-value cells like "ACT-4, ACT-3"
+            const cellParts = trimmed.split(',').map(s => s.trim()).filter(Boolean);
+            if (!cellParts.length) return false;
+            if (matchMode === 'only') {
+                // ALL parts must match at least one condition value
+                return cellParts.every(part => condVals.some(v => part.toUpperCase() === v.toUpperCase()));
+            }
+            // Default 'any': at least one part matches
+            return cellParts.some(part => condVals.some(v => part.toUpperCase() === v.toUpperCase()));
+        }
+
+        // Duplicate detection state
+        let dupMap = {};   // row → col → [duplicate values]
+        let dupCols = new Set(); // columns that have any duplicates
+
+        function runAudit() {
+            auditIssues = [];
+            dupMap = {};
+            dupCols = new Set();
+            const finishCols = getFinishColNames();
+
+            roomData.forEach((row, rowIdx) => {
+                const roomNum = columnMap.roomNum ? String(row[columnMap.roomNum] ?? '').trim() : `Row ${rowIdx + 2}`;
+
+                // 1. Valid value check — each finish column value vs BIM IDs
+                if (validBimIds.size > 0) {
+                    finishCols.forEach(col => {
+                        const raw = String(row[col] ?? '').trim();
+                        if (!raw) return;
+                        const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+                        parts.forEach(part => {
+                            if (!validBimIds.has(part.toUpperCase())) {
+                                auditIssues.push({ row: rowIdx, room: roomNum, col, severity: 'error', type: 'Invalid Value', value: part, detail: `"${part}" is not a valid BIM ID` });
+                            }
+                        });
+                    });
+                }
+
+                // 2. Rule checks — collect issues + exemptions per row
+                const rowIssues = [];
+                const blankExemptions = new Set();
+
+                rules.forEach((rule, ruleIdx) => {
+                    const ifCol = rule.ifCol;
+                    const cellVal = String(row[ifCol] ?? '').trim();
+                    const triggered = matchesCondition(cellVal, rule.ifVal, rule.matchMode);
+                    if (!triggered) return;
+
+                    const targetCol = rule.thenCol || ifCol;
+                    const targetVal = String(row[targetCol] ?? '').trim();
+
+                    if (rule.mustBe === 'HAVE_VALUE') {
+                        if (!rule.thenCol || rule.thenCol === ifCol) {
+                            if (!cellVal) {
+                                rowIssues.push({ row: rowIdx, room: roomNum, col: ifCol, severity: 'error', type: 'Missing Value', value: '', detail: `${ifCol} is required but blank`, ruleIdx });
+                            }
+                        } else {
+                            if (!targetVal) {
+                                rowIssues.push({ row: rowIdx, room: roomNum, col: targetCol, severity: 'error', type: 'Rule Violation', value: '', detail: `${targetCol} must have a value when ${ifCol} = "${cellVal}"`, ruleIdx });
+                            }
+                        }
+                    } else if (rule.mustBe === 'BE_BLANK') {
+                        if (targetVal) {
+                            rowIssues.push({ row: rowIdx, room: roomNum, col: targetCol, severity: 'error', type: 'Rule Violation', value: targetVal, detail: `${targetCol} should be blank when ${ifCol} = "${cellVal}"`, ruleIdx });
+                        } else {
+                            blankExemptions.add(targetCol);
+                        }
+                    } else if (rule.mustBe === 'BE_VALUE') {
+                        const allowedVals = parseOrValues(rule.thenVal);
+                        if (!allowedVals.some(v => targetVal.toUpperCase() === v.toUpperCase())) {
+                            rowIssues.push({ row: rowIdx, room: roomNum, col: targetCol, severity: 'error', type: 'Rule Violation', value: targetVal || '(blank)', detail: `${targetCol} must be ${rule.thenVal} when ${ifCol} = "${cellVal}"`, ruleIdx });
+                        } else {
+                            blankExemptions.add(targetCol);
+                        }
+                    }
+                });
+
+                // Suppress Missing Value errors for exempted columns
+                rowIssues.forEach(issue => {
+                    if (issue.type === 'Missing Value' && blankExemptions.has(issue.col)) return;
+                    auditIssues.push(issue);
+                });
+
+                // 3. Duplicate value check — detect repeated values in comma-separated cells
+                finishCols.forEach(col => {
+                    const raw = String(row[col] ?? '').trim();
+                    if (!raw) return;
+                    const parts = raw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                    const seen = {};
+                    const dups = [];
+                    parts.forEach(p => {
+                        seen[p] = (seen[p] || 0) + 1;
+                        if (seen[p] === 2) dups.push(p); // only add on second occurrence
+                    });
+                    if (dups.length) {
+                        if (!dupMap[rowIdx]) dupMap[rowIdx] = {};
+                        dupMap[rowIdx][col] = dups;
+                        dupCols.add(col);
+                    }
+                });
+            });
+
+            // Deduplicate (same row + col + type)
+            const seen = new Set();
+            auditIssues = auditIssues.filter(i => {
+                const key = `${i.row}-${i.col}-${i.type}-${i.value}`;
+                if (seen.has(key)) return false;
+                seen.add(key); return true;
+            });
+
+            renderResults();
+        }
+
+        /* ── STAGE 4: RESULTS ── */
+        let activeFilter = 'all';
+
+        function renderResults() {
+            $('bannerRoom3').textContent = roomFileName;
+            $('bannerRoomMeta3').textContent = `${roomData.length} rows audited`;
+
+            const errorRows = new Set(auditIssues.map(i => i.row));
+            const dupRowCount = Object.keys(dupMap).length;
+            const invalidCount = auditIssues.filter(i => i.type === 'Invalid Value').length;
+            const ruleCount = auditIssues.filter(i => i.type !== 'Invalid Value').length;
+            const allIssueRows = new Set([...errorRows, ...Object.keys(dupMap).map(Number)]);
+            const clean = roomData.length - allIssueRows.size;
+
+            $('summaryGrid').innerHTML = `
+                <div class="summary-card blue"><div class="value">${roomData.length.toLocaleString()}</div><div class="label">Total Rooms</div></div>
+                <div class="summary-card warn"><div class="value">${invalidCount}</div><div class="label">Invalid IDs</div></div>
+                <div class="summary-card danger"><div class="value">${ruleCount}</div><div class="label">Rule Errors</div></div>
+                ${dupRowCount > 0 ? `<div class="summary-card" style="border-left:3px solid #7c3aed;"><div class="value" style="color:#7c3aed;">${dupRowCount}</div><div class="label">Duplicates</div></div>` : ''}
+                <div class="summary-card success"><div class="value">${clean.toLocaleString()}</div><div class="label">Clean Rooms</div></div>
+            `;
+
+            // Filter chips
+            const filterRow = $('filterRow');
+            filterRow.innerHTML = '';
+            const addChip = (label, filter) => {
+                const c = document.createElement('div');
+                c.className = 'filter-chip' + (activeFilter === filter ? ' active' : '');
+                c.textContent = label;
+                c.addEventListener('click', () => { activeFilter = filter; renderResults(); });
+                filterRow.appendChild(c);
+            };
+            addChip(`All Rows (${roomData.length})`, 'all');
+            addChip(`Rows with Errors (${errorRows.size})`, 'errors');
+
+            // Build issue lookup: row → col → { cat, ruleNum, desc }
+            // If a cell has both types, 'rule' takes priority (still red)
+            const issueMap = {};
+            auditIssues.forEach(i => {
+                if (!issueMap[i.row]) issueMap[i.row] = {};
+                const cat = i.type === 'Invalid Value' ? 'invalid' : 'rule';
+                // 'rule' overrides 'invalid' if both exist for same cell
+                if (!issueMap[i.row][i.col] || (cat === 'rule' && (!issueMap[i.row][i.col] || issueMap[i.row][i.col].cat !== 'rule'))) {
+                    const ruleNum = i.ruleIdx != null ? i.ruleIdx + 1 : null;
+                    const desc = ruleNum != null ? getRuleDescription(rules[i.ruleIdx]) : '';
+                    issueMap[i.row][i.col] = { cat, ruleNum, desc };
+                }
+            });
+
+            // Build spreadsheet-like headers
+            const finishCols = getFinishColNames();
+            const finishSet = new Set(finishCols);
+
+            // Determine which rows to show
+            let rowIndices = [];
+            if (activeFilter === 'errors') {
+                rowIndices = [...errorRows].sort((a, b) => a - b);
+            } else {
+                rowIndices = roomData.map((_, i) => i);
+            }
+
+            // Build table
+            const table = $('sheetPreview');
+            let html = '<thead><tr>';
+            roomHeaders.forEach(h => {
+                html += `<th>${escHtml(h)}</th>`;
+                if (finishSet.has(h)) {
+                    html += `<th class="check-hdr">CHECK ${escHtml(h).toUpperCase()}</th>`;
+                }
+                if (dupCols.has(h)) {
+                    html += `<th class="check-hdr" style="background:#7c3aed;">CHECK DUPLICATE ${escHtml(h).toUpperCase()}</th>`;
+                }
+            });
+            html += '</tr></thead><tbody>';
+            // Progressive loading
+            const PAGE_SIZE = 1000;
+            let shownCount = 0;
+
+            function buildRowHtml(rowIdx) {
+                const row = roomData[rowIdx];
+                let rh = '<tr>';
+                roomHeaders.forEach(h => {
+                    const val = String(row[h] ?? '').trim();
+                    rh += `<td>${escHtml(val || '')}</td>`;
+                    if (finishSet.has(h)) {
+                        const info = issueMap[rowIdx] && issueMap[rowIdx][h];
+                        if (info && info.cat === 'invalid') {
+                            rh += '<td class="cell-warn" title="Value not found in BIM ID reference list">Invalid ID</td>';
+                        } else if (info && info.cat === 'rule') {
+                            const tooltip = escHtml(info.desc || '');
+                            rh += `<td class="cell-error" title="${tooltip}">Rule ${info.ruleNum}</td>`;
+                        } else {
+                            rh += '<td></td>';
+                        }
+                    }
+                    if (dupCols.has(h)) {
+                        const dups = dupMap[rowIdx] && dupMap[rowIdx][h];
+                        if (dups) {
+                            rh += `<td class="cell-dup" title="Duplicated: ${escHtml(dups.join(', '))}">Duplicate</td>`;
+                        } else {
+                            rh += '<td></td>';
+                        }
+                    }
+                });
+                rh += '</tr>';
+                return rh;
+            }
+
+            const batch = rowIndices.slice(0, PAGE_SIZE);
+            batch.forEach(rowIdx => { html += buildRowHtml(rowIdx); });
+            shownCount = batch.length;
+
+            html += '</tbody>';
+            table.innerHTML = html;
+
+            // Load More button
+            const existingLoadMore = document.getElementById('loadMoreWrap');
+            if (existingLoadMore) existingLoadMore.remove();
+
+            if (rowIndices.length > shownCount) {
+                const wrap = document.createElement('div');
+                wrap.id = 'loadMoreWrap';
+                wrap.style.cssText = 'text-align:center;padding:16px 0;';
+                const btn = document.createElement('button');
+                btn.className = 'btn';
+                btn.textContent = `Load More (${(rowIndices.length - shownCount).toLocaleString()} remaining)`;
+                btn.addEventListener('click', () => {
+                    const tbody = table.querySelector('tbody');
+                    const nextBatch = rowIndices.slice(shownCount, shownCount + PAGE_SIZE);
+                    let moreHtml = '';
+                    nextBatch.forEach(rowIdx => { moreHtml += buildRowHtml(rowIdx); });
+                    tbody.insertAdjacentHTML('beforeend', moreHtml);
+                    shownCount += nextBatch.length;
+                    if (shownCount >= rowIndices.length) {
+                        wrap.remove();
+                    } else {
+                        btn.textContent = `Load More (${(rowIndices.length - shownCount).toLocaleString()} remaining)`;
+                    }
+                });
+                wrap.appendChild(btn);
+                table.parentElement.after(wrap);
+            }
+        }
+
+        /* ── EXPORT AUDIT ── */
+        $('btnExportAudit').addEventListener('click', exportAuditReport);
+
+        function exportAuditReport() {
+            if (!roomData.length) return;
+            const wb = XLSX.utils.book_new();
+
+            // Determine which columns are "finish" columns that get a CHECK column
+            const finishCols = getFinishColNames();
+            const finishSet = new Set(finishCols);
+
+            // Build the new header row: original columns with CHECK columns inserted after each finish column
+            const newHeaders = [];
+            const checkColIndices = {}; // maps finish col name → index in newHeaders
+            const dupCheckColIndices = {}; // maps finish col name → index of CHECK DUPLICATE column
+            roomHeaders.forEach(h => {
+                const displayName = finishSet.has(h) ? shortColName(h) : h;
+                newHeaders.push(displayName);
+                if (finishSet.has(h)) {
+                    const checkName = 'CHECK ' + shortColName(h);
+                    checkColIndices[h] = newHeaders.length;
+                    newHeaders.push(checkName);
+                }
+                if (dupCols.has(h)) {
+                    const dupName = 'CHECK DUPLICATE ' + shortColName(h);
+                    dupCheckColIndices[h] = newHeaders.length;
+                    newHeaders.push(dupName);
+                }
+            });
+
+            // Build an issue lookup: row → col → { cat, ruleNum, desc }
+            const issueMap = {};
+            auditIssues.forEach(i => {
+                if (!issueMap[i.row]) issueMap[i.row] = {};
+                const cat = i.type === 'Invalid Value' ? 'invalid' : 'rule';
+                if (!issueMap[i.row][i.col] || (cat === 'rule' && (!issueMap[i.row][i.col] || issueMap[i.row][i.col].cat !== 'rule'))) {
+                    const ruleNum = i.ruleIdx != null ? i.ruleIdx + 1 : null;
+                    const desc = ruleNum != null ? getRuleDescription(rules[i.ruleIdx]) : '';
+                    issueMap[i.row][i.col] = { cat, ruleNum, desc };
+                }
+            });
+
+            // Build data rows
+            const exportData = [newHeaders];
+            roomData.forEach((row, rowIdx) => {
+                const newRow = [];
+                roomHeaders.forEach(h => {
+                    newRow.push(String(row[h] ?? '').trim());
+                    if (finishSet.has(h)) {
+                        const info = issueMap[rowIdx] && issueMap[rowIdx][h];
+                        if (info && info.cat === 'invalid') newRow.push('Invalid ID');
+                        else if (info && info.cat === 'rule') newRow.push(`Rule ${info.ruleNum}: ${info.desc}`);
+                        else newRow.push('');
+                    }
+                    if (dupCols.has(h)) {
+                        const dups = dupMap[rowIdx] && dupMap[rowIdx][h];
+                        if (dups) newRow.push('Duplicate: ' + dups.join(', '));
+                        else newRow.push('');
+                    }
+                });
+                exportData.push(newRow);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(exportData);
+
+            // Style definitions
+            const origHdrStyle = {
+                font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+                fill: { fgColor: { rgb: '333333' } },
+                alignment: { horizontal: 'left', vertical: 'center' },
+                border: { bottom: { style: 'thin', color: { rgb: '000000' } } }
+            };
+            const checkHdrStyle = {
+                font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+                fill: { fgColor: { rgb: '00A99D' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border: { bottom: { style: 'thin', color: { rgb: '000000' } } }
+            };
+            const cellStyle = {
+                alignment: { horizontal: 'left', vertical: 'center' },
+                font: { sz: 11 }
+            };
+            const ruleErrorCellStyle = {
+                alignment: { horizontal: 'center', vertical: 'center' },
+                font: { bold: true, sz: 11, color: { rgb: 'DC2626' } },
+                fill: { fgColor: { rgb: 'FEE2E2' } }
+            };
+            const invalidIdCellStyle = {
+                alignment: { horizontal: 'center', vertical: 'center' },
+                font: { bold: true, sz: 11, color: { rgb: 'B45309' } },
+                fill: { fgColor: { rgb: 'FEF3C7' } }
+            };
+
+            // Track which column indices are CHECK columns and CHECK DUPLICATE columns
+            const checkColSet = new Set(Object.values(checkColIndices));
+            const dupCheckColSet = new Set(Object.values(dupCheckColIndices));
+
+            // Apply styles
+            const cc = newHeaders.length;
+            const rc = exportData.length;
+
+            // Column widths
+            const cols = [];
+            for (let c = 0; c < cc; c++) {
+                const hdrLen = String(newHeaders[c] || '').length;
+                const lens = [];
+                const step = rc > 500 ? Math.ceil(rc / 500) : 1;
+                for (let r = 1; r < rc; r += step) {
+                    const v = String(exportData[r][c] || '');
+                    if (v.length) lens.push(v.length);
+                }
+                lens.sort((a, b) => a - b);
+                const p90 = lens.length ? lens[Math.floor(lens.length * 0.9)] : 0;
+                const w = Math.max(hdrLen + 4, p90 + 2);
+                cols.push({ wch: Math.max(8, Math.min(w, 40)) });
+            }
+            ws['!cols'] = cols;
+
+            // Duplicate header style (purple)
+            const dupHdrStyle = {
+                font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+                fill: { fgColor: { rgb: '7C3AED' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border: { bottom: { style: 'thin', color: { rgb: '000000' } } }
+            };
+            const dupCellStyle = {
+                alignment: { horizontal: 'center', vertical: 'center' },
+                font: { bold: true, sz: 11, color: { rgb: '7C3AED' } },
+                fill: { fgColor: { rgb: 'EDE9FE' } }
+            };
+
+            // Header row styles
+            for (let c = 0; c < cc; c++) {
+                const addr = XLSX.utils.encode_cell({ r: 0, c });
+                if (ws[addr]) {
+                    if (dupCheckColSet.has(c)) ws[addr].s = dupHdrStyle;
+                    else if (checkColSet.has(c)) ws[addr].s = checkHdrStyle;
+                    else ws[addr].s = origHdrStyle;
+                }
+            }
+
+            // Data cell styles
+            for (let r = 1; r < rc; r++) {
+                for (let c = 0; c < cc; c++) {
+                    const addr = XLSX.utils.encode_cell({ r, c });
+                    if (!ws[addr]) continue;
+                    if (dupCheckColSet.has(c) && typeof ws[addr].v === 'string' && ws[addr].v.startsWith('Duplicate')) {
+                        ws[addr].s = dupCellStyle;
+                    } else if (checkColSet.has(c) && typeof ws[addr].v === 'string' && ws[addr].v.startsWith('Rule ')) {
+                        ws[addr].s = ruleErrorCellStyle;
+                    } else if (checkColSet.has(c) && ws[addr].v === 'Invalid ID') {
+                        ws[addr].s = invalidIdCellStyle;
+                    } else {
+                        ws[addr].s = cellStyle;
+                        if (typeof ws[addr].v === 'number') { ws[addr].t = 's'; ws[addr].v = String(ws[addr].v); }
+                    }
+                }
+            }
+
+            ws['!autofilter'] = { ref: 'A1:' + XLSX.utils.encode_col(cc - 1) + rc };
+            XLSX.utils.book_append_sheet(wb, ws, 'QAQC Audit');
+            XLSX.writeFile(wb, 'finish_qaqc_audit.xlsx');
+        }
+
+        function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+        // Normalize verbose column names to short consistent export names
+        function shortColName(name) {
+            const n = (name || '').trim().toLowerCase();
+            if (n === 'floor finish' || n === 'floor') return 'FLOOR';
+            if (n === 'floor base' || n === 'base') return 'BASE';
+            if (n === 'wall finish' || n === 'wall') return 'WALL';
+            if (n === 'ceiling material' || n === 'ceiling mat') return 'CEILING MATERIAL';
+            if (n === 'ceiling finish') return 'CEILING FINISH';
+            return name; // keep original if not a known finish column
+        }
+    </script>
+</body>
+
+</html>

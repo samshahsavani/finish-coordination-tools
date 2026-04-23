@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finish Template Analyzer — Finish Tools</title>
+    <meta name="description"
+        content="Analyze dRofus CSV exports to discover finish template groupings for architectural projects.">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #fafafa;
+            --bg-card: #ffffff;
+            --bg-hover: #f5f5f5;
+            --border: #e5e5e5;
+            --border-strong: #d4d4d4;
+            --border-accent: #000000;
+            --text-primary: #0a0a0a;
+            --text-secondary: #525252;
+            --text-muted: #a3a3a3;
+            --accent: #000000;
+            --accent-light: #404040;
+            --accent-sub: #2563eb;
+            --accent-sub-light: rgba(37, 99, 235, 0.08);
+            --accent-merge: #ca8a04;
+            --accent-merge-light: rgba(202, 138, 4, 0.08);
+            --accent-success: #16a34a;
+            --accent-success-light: rgba(22, 163, 74, 0.06);
+            --accent-danger: #dc2626;
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition-fast: 0.12s ease;
+            --transition-normal: 0.2s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 48px 40px;
+        }
+
+        /* HEADER */
+        .app-header {
+            margin-bottom: 48px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 32px;
+        }
+
+        .app-header .brand {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+
+        .app-header h1 {
+            font-size: 28px;
+            font-weight: 300;
+            letter-spacing: -0.5px;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .app-header .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* STAGE INDICATOR */
+        .stage-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-bottom: 40px;
+        }
+
+        .stage-dot {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            transition: color var(--transition-normal);
+            letter-spacing: 0.3px;
+        }
+
+        .stage-dot.active {
+            color: var(--text-primary);
+        }
+
+        .stage-dot.done {
+            color: var(--accent-success);
+        }
+
+        .stage-dot .num {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1.5px solid var(--border);
+            color: var(--text-muted);
+            transition: all var(--transition-normal);
+        }
+
+        .stage-dot.active .num {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: white;
+        }
+
+        .stage-dot.done .num {
+            border-color: var(--accent-success);
+            background: var(--accent-success);
+            color: white;
+        }
+
+        .stage-connector {
+            width: 48px;
+            height: 1px;
+            background: var(--border);
+            margin: 0 12px;
+        }
+
+        .stage-connector.done {
+            background: var(--accent-success);
+        }
+
+        /* STAGES */
+        .stage {
+            display: none;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        .stage.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* STAGE 1: UPLOAD */
+        .drop-zone {
+            border: 1.5px dashed var(--border-strong);
+            border-radius: var(--radius-lg);
+            padding: 80px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            position: relative;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+        }
+
+        .drop-zone .upload-icon {
+            width: 48px;
+            height: 48px;
+            border: 1.5px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 18px;
+            color: var(--text-muted);
+        }
+
+        .drop-zone h2 {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text-primary);
+        }
+
+        .drop-zone p {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        /* PANELS */
+        .selection-panel {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 28px;
+        }
+
+        .selection-panel+.selection-panel {
+            margin-top: 20px;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .panel-header .badge {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 3px 8px;
+            border-radius: 3px;
+        }
+
+        .panel-header .badge.anchor {
+            background: var(--accent);
+            color: white;
+        }
+
+        .panel-header .badge.sub {
+            background: var(--accent-sub);
+            color: white;
+        }
+
+        .panel-header .badge.merge {
+            background: var(--accent-merge);
+            color: white;
+        }
+
+        .panel-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .panel-header .hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        /* CHIPS */
+        .column-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .chip {
+            padding: 6px 14px;
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            transition: all var(--transition-fast);
+            user-select: none;
+        }
+
+        .chip:hover {
+            border-color: var(--border-strong);
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+        }
+
+        .chip.selected-anchor {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .chip.selected-sub {
+            background: var(--accent-sub-light);
+            border-color: var(--accent-sub);
+            color: var(--accent-sub);
+        }
+
+        .chip.disabled {
+            opacity: 0.25;
+            pointer-events: none;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--accent-success-light);
+            border: 1px solid rgba(22, 163, 74, 0.15);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .file-info .fi-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-success);
+            flex-shrink: 0;
+        }
+
+        .file-info .name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .file-info .meta {
+            color: var(--text-muted);
+            margin-left: auto;
+            font-size: 12px;
+        }
+
+        /* BUTTONS */
+        .btn-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 28px;
+        }
+
+        .btn {
+            padding: 10px 28px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            transition: all var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            letter-spacing: 0.2px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-light);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.25;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .btn-merge {
+            background: var(--accent-merge-light);
+            color: var(--accent-merge);
+            border: 1px solid rgba(202, 138, 4, 0.2);
+        }
+
+        .btn-merge:hover {
+            background: rgba(202, 138, 4, 0.15);
+        }
+
+        .btn-merge:disabled {
+            opacity: 0.25;
+            cursor: not-allowed;
+        }
+
+        /* ============================================
+       STAGE 2: ANCHOR VALUES LIST
+    ============================================ */
+        .anchor-values-list {
+            max-height: 440px;
+            overflow-y: auto;
+        }
+
+        .anchor-value-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            user-select: none;
+        }
+
+        .anchor-value-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .anchor-value-item.selected {
+            background: var(--accent-merge-light);
+            border-color: rgba(202, 138, 4, 0.2);
+        }
+
+        .anchor-value-item.merged {
+            background: var(--accent-success-light);
+            border-color: rgba(22, 163, 74, 0.1);
+            opacity: 0.6;
+        }
+
+        .anchor-value-item .av-checkbox {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            border: 1.5px solid var(--border-strong);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+            flex-shrink: 0;
+            font-size: 10px;
+        }
+
+        .anchor-value-item.selected .av-checkbox {
+            border-color: var(--accent-merge);
+            background: var(--accent-merge);
+            color: white;
+        }
+
+        .anchor-value-item.merged .av-checkbox {
+            border-color: var(--accent-success);
+            background: var(--accent-success);
+            color: white;
+        }
+
+        .anchor-value-item .av-name {
+            flex: 1;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .anchor-value-item.selected .av-name {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .anchor-value-item .av-count {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            padding: 2px 8px;
+            border-radius: 100px;
+            border: 1px solid var(--border);
+        }
+
+        .anchor-value-item .av-merged-into {
+            font-size: 11px;
+            color: var(--accent-success);
+            font-weight: 500;
+        }
+
+        .merge-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 0 6px;
+            border-top: 1px solid var(--border);
+            margin-top: 12px;
+        }
+
+        .merge-label-input {
+            flex: 1;
+            padding: 8px 14px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .merge-label-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .merge-label-input:focus {
+            border-color: var(--accent-merge);
+        }
+
+        .selection-count {
+            font-size: 12px;
+            color: var(--accent-merge);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .search-filter {
+            padding: 8px 14px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .search-filter::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-filter:focus {
+            border-color: var(--border-strong);
+        }
+
+        .merged-groups-list {
+            margin-top: 14px;
+        }
+
+        .merged-group-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            background: var(--accent-success-light);
+            border: 1px solid rgba(22, 163, 74, 0.12);
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+
+        .merged-group-card .mg-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-success);
+            min-width: 100px;
+        }
+
+        .merged-group-card .mg-items {
+            flex: 1;
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.8;
+        }
+
+        .merged-group-card .mg-items span {
+            display: inline-block;
+            padding: 1px 6px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            margin: 2px 3px 2px 0;
+        }
+
+        .merged-group-card .mg-count {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .merged-group-card .mg-remove {
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-muted);
+            transition: color var(--transition-fast);
+            padding: 2px 4px;
+        }
+
+        .merged-group-card .mg-remove:hover {
+            color: var(--accent-danger);
+        }
+
+        /* ============================================
+       STAGE 4: RESULTS
+    ============================================ */
+        .summary-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+
+        .summary-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            text-align: center;
+        }
+
+        .summary-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .summary-card.blue .value {
+            color: var(--accent-sub);
+        }
+
+        .summary-card.merge .value {
+            color: var(--accent-merge);
+        }
+
+        .summary-card .label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        .results-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .results-controls .search-box {
+            flex: 1;
+            min-width: 180px;
+            padding: 8px 14px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .results-controls .search-box:focus {
+            border-color: var(--border-strong);
+        }
+
+        .results-controls .search-box::placeholder {
+            color: var(--text-muted);
+        }
+
+        .group-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            margin-bottom: 8px;
+            overflow: hidden;
+            transition: border-color var(--transition-normal);
+        }
+
+        .group-card:hover {
+            border-color: var(--border-strong);
+        }
+
+        .group-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            cursor: pointer;
+            user-select: none;
+            transition: background var(--transition-fast);
+        }
+
+        .group-header:hover {
+            background: var(--bg-hover);
+        }
+
+        .group-header .chevron {
+            font-size: 10px;
+            color: var(--text-muted);
+            transition: transform var(--transition-normal);
+            flex-shrink: 0;
+        }
+
+        .group-card.open .group-header .chevron {
+            transform: rotate(90deg);
+        }
+
+        .group-header .group-name {
+            font-size: 14px;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .group-header .tag {
+            padding: 3px 10px;
+            border-radius: 100px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .tag-combos {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .tag-rooms {
+            background: var(--accent-sub-light);
+            color: var(--accent-sub);
+            border: 1px solid rgba(37, 99, 235, 0.15);
+        }
+
+        .tag-merged {
+            background: var(--accent-merge-light);
+            color: var(--accent-merge);
+            border: 1px solid rgba(202, 138, 4, 0.15);
+        }
+
+        .group-body {
+            display: none;
+            padding: 0 20px 16px;
+        }
+
+        .group-card.open .group-body {
+            display: block;
+            animation: fadeIn 0.2s ease forwards;
+        }
+
+        .sub-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .sub-table thead th {
+            text-align: left;
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sub-table thead th:first-child {
+            border-radius: var(--radius-sm) 0 0 0;
+        }
+
+        .sub-table thead th:last-child {
+            border-radius: 0 var(--radius-sm) 0 0;
+        }
+
+        .sub-table tbody tr {
+            transition: background var(--transition-fast);
+        }
+
+        .sub-table tbody tr:hover {
+            background: var(--bg-hover);
+        }
+
+        .sub-table tbody td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .sub-table tbody td:last-child {
+            font-weight: 600;
+            color: var(--accent-sub);
+        }
+
+        .sub-table .cell-value {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            font-family: 'SFMono-Regular', 'Consolas', monospace;
+            font-size: 11px;
+        }
+
+        .sub-table .empty-val {
+            color: var(--text-muted);
+            font-style: italic;
+            border: none;
+            background: none;
+        }
+
+        .room-expand-btn {
+            cursor: pointer;
+            color: var(--accent-sub);
+            font-size: 11px;
+            text-decoration: none;
+            background: none;
+            border: none;
+            font-family: inherit;
+            padding: 2px 4px;
+            font-weight: 500;
+        }
+
+        .room-expand-btn:hover {
+            text-decoration: underline;
+        }
+
+        .room-detail-row td {
+            padding: 0 !important;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .room-detail-content {
+            padding: 10px 20px;
+            background: var(--bg-secondary);
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .room-detail-content table {
+            width: 100%;
+            font-size: 11px;
+            border-collapse: collapse;
+        }
+
+        .room-detail-content th,
+        .room-detail-content td {
+            padding: 5px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .room-detail-content th {
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .room-detail-content td {
+            color: var(--text-secondary);
+        }
+
+        .expand-all-btn {
+            font-size: 11px;
+            color: var(--text-muted);
+            cursor: pointer;
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 5px 12px;
+            font-family: inherit;
+            font-weight: 500;
+            transition: all var(--transition-fast);
+        }
+
+        .expand-all-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--border-strong);
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-strong);
+        }
+
+        @media (max-width: 768px) {
+            .app-container {
+                padding: 24px 16px;
+            }
+
+            .app-header h1 {
+                font-size: 22px;
+            }
+
+            .drop-zone {
+                padding: 48px 20px;
+            }
+
+            .selection-panel {
+                padding: 20px;
+            }
+
+            .summary-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="brand">Finish Tools</div>
+            <h1>Finish Template Analyzer</h1>
+            <p class="subtitle">Evaluate dRofus finish groupings by selecting anchor and sub-group columns</p>
+        </header>
+
+        <div class="stage-indicator">
+            <div class="stage-dot active" id="dot-1"><span class="num">1</span> Upload</div>
+            <div class="stage-connector" id="conn-1"></div>
+            <div class="stage-dot" id="dot-2"><span class="num">2</span> Anchor & Merge</div>
+            <div class="stage-connector" id="conn-2"></div>
+            <div class="stage-dot" id="dot-3"><span class="num">3</span> Sub-Groups</div>
+            <div class="stage-connector" id="conn-3"></div>
+            <div class="stage-dot" id="dot-4"><span class="num">4</span> Results</div>
+        </div>
+
+        <!-- STAGE 1: UPLOAD -->
+        <section class="stage active" id="stage-upload">
+            <div class="drop-zone" id="dropZone">
+                <div class="upload-icon">&#8593;</div>
+                <h2>Drop your CSV or Excel file here</h2>
+                <p>Supports .csv, .xlsx, and .xls</p>
+                <input type="file" accept=".csv,.xlsx,.xls" id="fileInput">
+            </div>
+        </section>
+
+        <!-- STAGE 2: ANCHOR & MERGE -->
+        <section class="stage" id="stage-anchor">
+            <div class="file-info" id="fileInfo">
+                <span class="fi-icon"></span>
+                <span class="name" id="fileName"></span>
+                <span class="meta" id="fileMeta"></span>
+            </div>
+
+            <div class="selection-panel">
+                <div class="panel-header">
+                    <span class="badge anchor">A</span>
+                    <h3>Anchor Column</h3>
+                    <span class="hint">Primary grouping column</span>
+                </div>
+                <div class="column-chips" id="anchorChips"></div>
+                <div style="margin-top:12px;padding:10px 14px;background:#f9fafb;border:1px solid #e5e5e5;border-radius:6px;font-size:12px;color:#6b7280;line-height:1.6;font-style:italic;">
+                    Use an anchor column when you want to create templates grouped by type — for example, selecting <strong>Department</strong> will generate separate template sets for each department. Skip this step if you want one unified template list for all rooms.
+                </div>
+            </div>
+
+            <div class="selection-panel" id="anchorValuesPanel" style="display:none; margin-top:20px;">
+                <div class="panel-header">
+                    <span class="badge merge">M</span>
+                    <h3>Anchor Values</h3>
+                    <span class="hint" id="anchorValuesHint"></span>
+                </div>
+                <input type="text" class="search-filter" id="anchorSearchFilter" placeholder="Filter values...">
+                <div class="anchor-values-list" id="anchorValuesList"></div>
+                <div class="merge-controls" id="mergeControls" style="display:none;">
+                    <span class="selection-count" id="selectionCount"></span>
+                    <input type="text" class="merge-label-input" id="mergeLabelInput" placeholder="Merged group name">
+                    <button class="btn btn-merge" id="btnMergeSelected" disabled>Merge Selected</button>
+                </div>
+                <div class="merged-groups-list" id="mergedGroupsList"></div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" id="btnBack1">Back</button>
+                <button class="btn btn-secondary" id="btnSkipAnchor">Skip — No Anchor</button>
+                <button class="btn btn-primary" id="btnToSubGroups" disabled>Continue</button>
+            </div>
+        </section>
+
+        <!-- STAGE 3: SUB-GROUP COLUMNS -->
+        <section class="stage" id="stage-subgroups">
+            <div class="file-info">
+                <span class="fi-icon"></span>
+                <span class="name" id="fileName2"></span>
+                <span class="meta" id="fileMeta2"></span>
+            </div>
+            <div class="selection-panel">
+                <div class="panel-header">
+                    <span class="badge sub">S</span>
+                    <h3>Sub-Group Columns</h3>
+                    <span class="hint">Finish columns to compare within each group</span>
+                </div>
+                <div class="column-chips" id="subChips"></div>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-secondary" id="btnBack2">Back</button>
+                <button class="btn btn-primary" id="btnAnalyze" disabled>Analyze</button>
+            </div>
+        </section>
+
+        <!-- STAGE 4: RESULTS -->
+        <section class="stage" id="stage-results">
+            <div class="summary-bar" id="summaryBar"></div>
+            <div class="results-controls">
+                <input type="text" class="search-box" id="searchBox" placeholder="Search groups...">
+                <button class="expand-all-btn" id="btnExpandAll">Expand All</button>
+                <button class="expand-all-btn" id="btnCollapseAll">Collapse All</button>
+                <div style="flex:1"></div>
+                <button class="btn btn-secondary" id="btnGenerateReport">Export Report</button>
+                <button class="btn btn-secondary" id="btnExportHTML">Export HTML</button>
+                <button class="btn btn-secondary" id="btnReselect">Re-select</button>
+                <button class="btn btn-secondary" id="btnReset">New File</button>
+            </div>
+            <div id="resultsContainer"></div>
+        </section>
+    </div>
+
+    <script>
+        /* STATE */
+        let csvData = [];
+        let csvHeaders = [];
+        let anchorCol = null;
+        let anchorValues = [];
+        let selectedForMerge = new Set();
+        let mergeGroups = [];
+        let subCols = [];
+        let analysisResults = null;
+
+        /* DOM REFS */
+        const $ = id => document.getElementById(id);
+        const dropZone = $('dropZone');
+        const fileInput = $('fileInput');
+        const stageUpload = $('stage-upload');
+        const stageAnchor = $('stage-anchor');
+        const stageSubgroups = $('stage-subgroups');
+        const stageResults = $('stage-results');
+        const anchorChips = $('anchorChips');
+        const anchorValuesPanel = $('anchorValuesPanel');
+        const anchorValuesList = $('anchorValuesList');
+        const anchorSearchFilter = $('anchorSearchFilter');
+        const mergeControls = $('mergeControls');
+        const selectionCount = $('selectionCount');
+        const mergeLabelInput = $('mergeLabelInput');
+        const btnMergeSelected = $('btnMergeSelected');
+        const mergedGroupsList = $('mergedGroupsList');
+        const subChips = $('subChips');
+        const btnBack1 = $('btnBack1');
+        const btnSkipAnchor = $('btnSkipAnchor');
+        const btnToSubGroups = $('btnToSubGroups');
+        const btnBack2 = $('btnBack2');
+        const btnAnalyze = $('btnAnalyze');
+        const btnReselect = $('btnReselect');
+        const btnReset = $('btnReset');
+        const searchBox = $('searchBox');
+        const resultsContainer = $('resultsContainer');
+        const btnExpandAll = $('btnExpandAll');
+        const btnCollapseAll = $('btnCollapseAll');
+        const btnExportHTML = $('btnExportHTML');
+
+        /* NAVIGATION */
+        const allStages = [stageUpload, stageAnchor, stageSubgroups, stageResults];
+        function goToStage(n) {
+            allStages.forEach((s, i) => s.classList.toggle('active', i === n - 1));
+            for (let i = 1; i <= 4; i++) {
+                const dot = $('dot-' + i);
+                dot.classList.remove('active', 'done');
+                if (i < n) dot.classList.add('done');
+                else if (i === n) dot.classList.add('active');
+            }
+            for (let i = 1; i <= 3; i++) {
+                $('conn-' + i).classList.toggle('done', i < n);
+            }
+        }
+
+        /* STAGE 1: FILE */
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault(); dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+        function handleFile(file) {
+            const name = file.name.toLowerCase();
+            const isExcel = name.endsWith('.xlsx') || name.endsWith('.xls');
+            const isCsv = name.endsWith('.csv');
+            if (!isExcel && !isCsv) { alert('Please upload a CSV or Excel file (.csv, .xlsx, .xls).'); return; }
+
+            if (isCsv) {
+                Papa.parse(file, {
+                    header: true, skipEmptyLines: true,
+                    complete: (result) => loadData(result.data, (result.meta.fields || []).filter(h => h.trim() !== ''), file.name),
+                    error: (err) => alert('Error parsing CSV: ' + err.message)
+                });
+            } else {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const wb = XLSX.read(e.target.result, { type: 'array' });
+                        if (wb.SheetNames.length === 1) {
+                            parseExcelSheet(wb, wb.SheetNames[0], file.name);
+                        } else {
+                            showSheetPicker(wb, file.name);
+                        }
+                    } catch (err) { alert('Error reading Excel file: ' + err.message); }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        function parseExcelSheet(wb, sheetName, fileName) {
+            const ws = wb.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            const headers = json.length > 0 ? Object.keys(json[0]).filter(h => h.trim() !== '') : [];
+            loadData(json, headers, fileName + ' → ' + sheetName);
+        }
+
+        function showSheetPicker(wb, fileName) {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:9999;';
+            const modal = document.createElement('div');
+            modal.style.cssText = 'background:white;border-radius:12px;padding:32px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.15);font-family:Inter,-apple-system,sans-serif;';
+            let html = '<div style="font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#a3a3a3;margin-bottom:12px;">SELECT SHEET</div>';
+            html += `<div style="font-size:14px;margin-bottom:20px;color:#525252;">This workbook has ${wb.SheetNames.length} sheets. Pick one:</div>`;
+            wb.SheetNames.forEach((name, i) => {
+                html += `<button class="sheet-pick-btn" data-idx="${i}" style="display:block;width:100%;text-align:left;padding:12px 16px;margin-bottom:6px;border:1px solid #e5e5e5;border-radius:8px;background:white;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 0.15s ease;">${escHtml(name)}</button>`;
+            });
+            html += '<button id="sheetPickCancel" style="margin-top:12px;font-size:12px;color:#a3a3a3;background:none;border:none;cursor:pointer;font-family:inherit;">Cancel</button>';
+            modal.innerHTML = html;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+
+            modal.querySelectorAll('.sheet-pick-btn').forEach(btn => {
+                btn.addEventListener('mouseenter', () => { btn.style.borderColor = '#000'; btn.style.background = '#fafafa'; });
+                btn.addEventListener('mouseleave', () => { btn.style.borderColor = '#e5e5e5'; btn.style.background = 'white'; });
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.idx);
+                    document.body.removeChild(overlay);
+                    parseExcelSheet(wb, wb.SheetNames[idx], fileName);
+                });
+            });
+            modal.querySelector('#sheetPickCancel').addEventListener('click', () => document.body.removeChild(overlay));
+        }
+
+        function loadData(data, headers, displayName) {
+            csvData = data;
+            csvHeaders = headers;
+            const info = `${csvData.length.toLocaleString()} rows, ${csvHeaders.length} columns`;
+            $('fileName').textContent = displayName;
+            $('fileMeta').textContent = info;
+            $('fileName2').textContent = displayName;
+            $('fileMeta2').textContent = info;
+            buildAnchorChips();
+            goToStage(2);
+        }
+
+        /* STAGE 2: ANCHOR SELECTION */
+        function buildAnchorChips() {
+            anchorChips.innerHTML = '';
+            anchorCol = null;
+            anchorValues = [];
+            selectedForMerge.clear();
+            mergeGroups = [];
+            anchorValuesPanel.style.display = 'none';
+            btnToSubGroups.disabled = true;
+            csvHeaders.forEach(header => {
+                const chip = document.createElement('div');
+                chip.className = 'chip';
+                chip.textContent = header;
+                chip.addEventListener('click', () => selectAnchor(header));
+                anchorChips.appendChild(chip);
+            });
+        }
+
+        function selectAnchor(header) {
+            anchorCol = header;
+            Array.from(anchorChips.children).forEach(c =>
+                c.classList.toggle('selected-anchor', c.textContent === header)
+            );
+            const counts = {};
+            csvData.forEach(row => {
+                const val = String(row[header] ?? '').trim() || '(empty)';
+                counts[val] = (counts[val] || 0) + 1;
+            });
+            anchorValues = Object.entries(counts)
+                .map(([value, count]) => ({ value, count }))
+                .sort((a, b) => a.value.localeCompare(b.value));
+            selectedForMerge.clear();
+            mergeGroups = [];
+            renderAnchorValues();
+            anchorValuesPanel.style.display = 'block';
+            $('anchorValuesHint').textContent = `${anchorValues.length} unique values`;
+            btnToSubGroups.disabled = false;
+        }
+
+        function renderAnchorValues() {
+            const filter = anchorSearchFilter.value.toLowerCase().trim();
+            anchorValuesList.innerHTML = '';
+            const mergedMap = {};
+            mergeGroups.forEach(g => g.members.forEach(m => mergedMap[m] = g.label));
+
+            anchorValues.forEach(av => {
+                if (filter && !av.value.toLowerCase().includes(filter)) return;
+                const isMerged = av.value in mergedMap;
+                const isSelected = selectedForMerge.has(av.value);
+                const item = document.createElement('div');
+                item.className = 'anchor-value-item' + (isSelected ? ' selected' : '') + (isMerged ? ' merged' : '');
+                item.innerHTML = `
+          <div class="av-checkbox">${isSelected ? '&#10003;' : (isMerged ? '&#10003;' : '')}</div>
+          <div class="av-name">${escHtml(av.value)}</div>
+          ${isMerged ? `<span class="av-merged-into">&rarr; ${escHtml(mergedMap[av.value])}</span>` : ''}
+          <div class="av-count">${av.count}</div>
+        `;
+                if (!isMerged) {
+                    item.addEventListener('click', () => {
+                        if (selectedForMerge.has(av.value)) selectedForMerge.delete(av.value);
+                        else selectedForMerge.add(av.value);
+                        renderAnchorValues();
+                    });
+                }
+                anchorValuesList.appendChild(item);
+            });
+
+            const count = selectedForMerge.size;
+            if (count >= 2) {
+                mergeControls.style.display = 'flex';
+                selectionCount.textContent = `${count} selected`;
+                btnMergeSelected.disabled = false;
+            } else {
+                mergeControls.style.display = count === 1 ? 'flex' : 'none';
+                selectionCount.textContent = count === 1 ? '1 selected — pick at least 2' : '';
+                btnMergeSelected.disabled = true;
+            }
+            renderMergedGroups();
+        }
+
+        anchorSearchFilter.addEventListener('input', renderAnchorValues);
+
+        /* MERGE LOGIC */
+        btnMergeSelected.addEventListener('click', () => {
+            const members = Array.from(selectedForMerge);
+            if (members.length < 2) return;
+            const label = mergeLabelInput.value.trim() || members[0];
+            mergeGroups.push({ label, members: [...members] });
+            selectedForMerge.clear();
+            mergeLabelInput.value = '';
+            renderAnchorValues();
+        });
+
+        function removeMergeGroup(idx) {
+            mergeGroups.splice(idx, 1);
+            renderAnchorValues();
+        }
+
+        function renderMergedGroups() {
+            mergedGroupsList.innerHTML = '';
+            if (mergeGroups.length === 0) return;
+            mergeGroups.forEach((group, idx) => {
+                const totalRooms = group.members.reduce((sum, m) => {
+                    const av = anchorValues.find(a => a.value === m);
+                    return sum + (av ? av.count : 0);
+                }, 0);
+                const card = document.createElement('div');
+                card.className = 'merged-group-card';
+                card.innerHTML = `
+          <span class="mg-label">${escHtml(group.label)}</span>
+          <span class="mg-items">${group.members.map(m => `<span>${escHtml(m)}</span>`).join('')}</span>
+          <span class="mg-count">${totalRooms} rooms</span>
+          <span class="mg-remove" onclick="removeMergeGroup(${idx})" title="Undo">&times;</span>
+        `;
+                mergedGroupsList.appendChild(card);
+            });
+        }
+
+        /* STAGE 3: SUB-GROUPS */
+        function buildSubChips() {
+            subChips.innerHTML = '';
+            subCols = [];
+            csvHeaders.forEach(header => {
+                const chip = document.createElement('div');
+                chip.className = 'chip' + (anchorCol && header === anchorCol ? ' disabled' : '');
+                chip.textContent = header;
+                if (!anchorCol || header !== anchorCol) chip.addEventListener('click', () => toggleSub(header));
+                subChips.appendChild(chip);
+            });
+            updateAnalyzeButton();
+        }
+
+        function toggleSub(header) {
+            if (subCols.includes(header)) subCols = subCols.filter(s => s !== header);
+            else subCols.push(header);
+            Array.from(subChips.children).forEach(c => {
+                if (!anchorCol || c.textContent !== anchorCol) c.classList.toggle('selected-sub', subCols.includes(c.textContent));
+            });
+            updateAnalyzeButton();
+        }
+
+        function updateAnalyzeButton() { btnAnalyze.disabled = subCols.length === 0; }
+
+        /* ANALYSIS */
+        function applyMergeRules(anchorVal) {
+            for (const group of mergeGroups) {
+                if (group.members.includes(anchorVal)) return group.label;
+            }
+            return anchorVal;
+        }
+
+        function normalizeValue(val) {
+            if (!val || val === '—') return val;
+            const parts = val.split(',').map(s => s.trim()).filter(Boolean);
+            // Deduplicate (case-insensitive) then sort
+            const seen = new Set();
+            const unique = parts.filter(p => {
+                const key = p.toUpperCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+            return unique.sort().join(', ');
+        }
+
+        function runAnalysis() {
+            const groups = {};
+            csvData.forEach(row => {
+                let anchorVal, rawVal;
+                if (anchorCol) {
+                    rawVal = String(row[anchorCol] ?? '').trim() || '(empty)';
+                    anchorVal = applyMergeRules(rawVal);
+                } else {
+                    rawVal = 'All Rooms';
+                    anchorVal = 'All Rooms';
+                }
+                if (!groups[anchorVal]) groups[anchorVal] = { combos: {}, totalRooms: 0, isMerged: false };
+                groups[anchorVal].totalRooms++;
+                if (anchorVal !== rawVal) groups[anchorVal].isMerged = true;
+                const comboValues = subCols.map(col => normalizeValue(String(row[col] ?? '').trim() || '—'));
+                // Skip rows where ALL sub-group values are blank
+                if (comboValues.every(v => v === '—')) return;
+                const comboKey = comboValues.join(' | ');
+                if (!groups[anchorVal].combos[comboKey]) {
+                    groups[anchorVal].combos[comboKey] = { values: comboValues, rooms: [] };
+                }
+                groups[anchorVal].combos[comboKey].rooms.push(row);
+            });
+            analysisResults = Object.entries(groups)
+                .map(([name, data]) => ({
+                    name, isMerged: data.isMerged,
+                    comboCount: Object.keys(data.combos).length,
+                    totalRooms: data.totalRooms,
+                    combos: Object.values(data.combos).sort((a, b) => b.rooms.length - a.rooms.length)
+                }))
+                .sort((a, b) => b.comboCount - a.comboCount);
+            return analysisResults;
+        }
+
+        /* RENDER RESULTS */
+        function renderResults(results) {
+            const totalGroups = results.length;
+            const totalCombos = results.reduce((s, g) => s + g.comboCount, 0);
+            const totalRooms = results.reduce((s, g) => s + g.totalRooms, 0);
+            const maxCombos = Math.max(...results.map(g => g.comboCount));
+            const mergedCount = results.filter(g => g.isMerged).length;
+
+            $('summaryBar').innerHTML = `
+        ${anchorCol ? `<div class="summary-card"><div class="value">${totalGroups}</div><div class="label">Anchor Groups</div></div>` : ''}
+        <div class="summary-card blue"><div class="value">${totalCombos}</div><div class="label">Unique Templates</div></div>
+        <div class="summary-card"><div class="value">${totalRooms.toLocaleString()}</div><div class="label">Total Rooms</div></div>
+        ${anchorCol ? `<div class="summary-card blue"><div class="value">${maxCombos}</div><div class="label">Max Templates</div></div>` : ''}
+        ${mergedCount > 0 ? `<div class="summary-card merge"><div class="value">${mergedCount}</div><div class="label">Merged</div></div>` : ''}
+      `;
+            renderGroupCards(results);
+        }
+
+        function renderGroupCards(results) {
+            resultsContainer.innerHTML = '';
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-muted);">No groups match your search.</div>';
+                return;
+            }
+            results.forEach((group, gIdx) => {
+                const card = document.createElement('div');
+                card.className = 'group-card';
+                card.dataset.name = group.name.toLowerCase();
+                const header = document.createElement('div');
+                header.className = 'group-header';
+                header.innerHTML = `
+          <span class="chevron">&#9654;</span>
+          <span class="group-name">${escHtml(group.name)}</span>
+          ${group.isMerged ? '<span class="tag tag-merged">merged</span>' : ''}
+          <span class="tag tag-combos">${group.comboCount} template${group.comboCount !== 1 ? 's' : ''}</span>
+          <span class="tag tag-rooms">${group.totalRooms} room${group.totalRooms !== 1 ? 's' : ''}</span>
+        `;
+                header.addEventListener('click', () => card.classList.toggle('open'));
+                const body = document.createElement('div');
+                body.className = 'group-body';
+                let t = '<table class="sub-table"><thead><tr><th>Code</th>';
+                subCols.forEach(col => t += `<th>${escHtml(shortColName(col))}</th>`);
+                t += '<th>Rooms</th></tr></thead><tbody>';
+                group.combos.forEach((combo, cIdx) => {
+                    const rowId = `r-${gIdx}-${cIdx}`;
+                    t += `<tr><td style="color:var(--text-muted);font-weight:600;">${fmtCode(cIdx + 1)}</td>`;
+                    combo.values.forEach(val => {
+                        const empty = val === '—';
+                        t += `<td><span class="cell-value${empty ? ' empty-val' : ''}">${escHtml(val)}</span></td>`;
+                    });
+                    t += `<td><button class="room-expand-btn" onclick="toggleRoomDetail('${rowId}',this)">${combo.rooms.length} room${combo.rooms.length !== 1 ? 's' : ''} &#9662;</button></td></tr>`;
+                    t += `<tr class="room-detail-row" id="${rowId}" style="display:none"><td colspan="${subCols.length + 2}"><div class="room-detail-content" id="${rowId}-c"></div></td></tr>`;
+                });
+                t += '</tbody></table>';
+                body.innerHTML = t;
+                card.appendChild(header);
+                card.appendChild(body);
+                resultsContainer.appendChild(card);
+            });
+        }
+
+        function toggleRoomDetail(rowId, btn) {
+            const row = document.getElementById(rowId);
+            const content = document.getElementById(rowId + '-c');
+            if (row.style.display === 'none') {
+                row.style.display = 'table-row';
+                const p = rowId.replace('r-', '').split('-');
+                const rooms = analysisResults[parseInt(p[0])].combos[parseInt(p[1])].rooms;
+                const detailCols = csvHeaders.filter(h => (!anchorCol || h !== anchorCol) && !subCols.includes(h));
+                const priority = ['Room Number', 'Room Name', 'Level: Name', 'Model: Name'];
+                const cols = [...priority.filter(c => detailCols.includes(c)), ...detailCols.filter(c => !priority.includes(c))].slice(0, 8);
+                let h = '<table><thead><tr>';
+                cols.forEach(col => h += `<th>${escHtml(col)}</th>`);
+                h += '</tr></thead><tbody>';
+                rooms.forEach(rm => {
+                    h += '<tr>';
+                    cols.forEach(col => h += `<td>${escHtml(String(rm[col] ?? '').trim() || '—')}</td>`);
+                    h += '</tr>';
+                });
+                h += '</tbody></table>';
+                content.innerHTML = h;
+                btn.innerHTML = btn.innerHTML.replace('&#9662;', '&#9652;').replace('▾', '▴');
+            } else {
+                row.style.display = 'none';
+                btn.innerHTML = btn.innerHTML.replace('&#9652;', '&#9662;').replace('▴', '▾');
+            }
+        }
+
+        /* SEARCH / EXPAND / COLLAPSE */
+        searchBox.addEventListener('input', () => {
+            const q = searchBox.value.toLowerCase().trim();
+            document.querySelectorAll('.group-card').forEach(c => c.style.display = c.dataset.name.includes(q) ? '' : 'none');
+        });
+        btnExpandAll.addEventListener('click', () => document.querySelectorAll('.group-card').forEach(c => c.classList.add('open')));
+        btnCollapseAll.addEventListener('click', () => document.querySelectorAll('.group-card').forEach(c => c.classList.remove('open')));
+
+        /* EXPORT HTML — self-contained interactive report */
+        function exportHTML() {
+            if (!analysisResults) return;
+
+            const totalGroups = analysisResults.length;
+            const totalCombos = analysisResults.reduce((s, g) => s + g.comboCount, 0);
+            const totalRooms = analysisResults.reduce((s, g) => s + g.totalRooms, 0);
+            const mergedCount = analysisResults.filter(g => g.isMerged).length;
+            const now = new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+
+            // Pick detail columns for room expansion
+            const detailCols = csvHeaders.filter(h => (!anchorCol || h !== anchorCol) && !subCols.includes(h));
+            const priority = ['Room Number', 'Room Name', 'Level: Name', 'Model: Name'];
+            const roomCols = [...priority.filter(c => detailCols.includes(c)), ...detailCols.filter(c => !priority.includes(c))].slice(0, 8);
+
+            let groupsHTML = '';
+            analysisResults.forEach((group, gIdx) => {
+                let rows = '';
+                group.combos.forEach((combo, cIdx) => {
+                    rows += `<tr><td style="color:#a3a3a3;font-weight:600;">${fmtCode(cIdx + 1)}</td>`;
+                    combo.values.forEach(val => {
+                        const empty = val === '\u2014';
+                        rows += `<td><span style="display:inline-block;padding:2px 8px;border-radius:3px;${empty ? 'color:#a3a3a3;font-style:italic;' : 'background:#fafafa;border:1px solid #e5e5e5;font-family:monospace;font-size:11px;'}">${escHtml(val)}</span></td>`;
+                    });
+                    rows += `<td><button onclick="toggleRooms('rd-${gIdx}-${cIdx}')" style="cursor:pointer;color:#2563eb;font-size:11px;background:none;border:none;font-family:inherit;font-weight:500;">${combo.rooms.length} room${combo.rooms.length !== 1 ? 's' : ''} &#9662;</button></td></tr>`;
+                    // Room detail row
+                    let roomDetailRows = '';
+                    combo.rooms.forEach(room => {
+                        roomDetailRows += '<tr>';
+                        roomCols.forEach(col => {
+                            roomDetailRows += `<td style="padding:5px 8px;border-bottom:1px solid #e5e5e5;color:#525252;font-size:11px;">${escHtml(String(room[col] ?? '').trim() || '\u2014')}</td>`;
+                        });
+                        roomDetailRows += '</tr>';
+                    });
+                    rows += `<tr id="rd-${gIdx}-${cIdx}" style="display:none;"><td colspan="${subCols.length + 2}" style="padding:0;border-bottom:1px solid #e5e5e5;"><div style="padding:10px 20px;background:#fafafa;max-height:280px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr>${roomCols.map(c => `<th style="text-align:left;padding:5px 8px;border-bottom:1px solid #e5e5e5;color:#a3a3a3;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.5px;">${escHtml(c)}</th>`).join('')}</tr></thead><tbody>${roomDetailRows}</tbody></table></div></td></tr>`;
+                });
+
+                groupsHTML += `
+                    <div class="gc" style="border:1px solid #e5e5e5;border-radius:8px;margin-bottom:12px;overflow:hidden;">
+                        <div onclick="toggleGroup(this)" style="padding:12px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #e5e5e5;cursor:pointer;user-select:none;">
+                            <span class="chv" style="font-size:10px;color:#a3a3a3;transition:transform 0.2s;">&#9654;</span>
+                            <span style="font-size:14px;font-weight:500;flex:1;">${escHtml(group.name)}</span>
+                            ${group.isMerged ? '<span style="padding:3px 10px;border-radius:100px;font-size:10px;font-weight:600;background:rgba(202,138,4,0.08);color:#ca8a04;border:1px solid rgba(202,138,4,0.15);">merged</span>' : ''}
+                            <span style="padding:3px 10px;border-radius:100px;font-size:10px;font-weight:600;background:#fafafa;color:#525252;border:1px solid #e5e5e5;">${group.comboCount} template${group.comboCount !== 1 ? 's' : ''}</span>
+                            <span style="padding:3px 10px;border-radius:100px;font-size:10px;font-weight:600;background:rgba(37,99,235,0.08);color:#2563eb;border:1px solid rgba(37,99,235,0.15);">${group.totalRooms} room${group.totalRooms !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div class="gb" style="display:none;">
+                        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                            <thead><tr>
+                                <th style="text-align:left;padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#a3a3a3;background:#fafafa;border-bottom:1px solid #e5e5e5;">Code</th>
+                                ${subCols.map(col => `<th style="text-align:left;padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#a3a3a3;background:#fafafa;border-bottom:1px solid #e5e5e5;">${escHtml(shortColName(col))}</th>`).join('')}
+                                <th style="text-align:left;padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:#a3a3a3;background:#fafafa;border-bottom:1px solid #e5e5e5;">Rooms</th>
+                            </tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                        </div>
+                    </div>`;
+            });
+
+            const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finish Analysis Report \u2014 Finish Tools</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',-apple-system,sans-serif; background:#fff; color:#0a0a0a; padding:48px 40px; max-width:1200px; margin:0 auto; -webkit-font-smoothing:antialiased; }
+table td { padding:8px 12px; border-bottom:1px solid #e5e5e5; color:#525252; }
+.gc:hover { border-color:#d4d4d4 !important; }
+@media print { body { padding:24px; } .gb { display:block !important; } }
+</style>
+</head>
+<body>
+<div style="margin-bottom:40px;border-bottom:1px solid #e5e5e5;padding-bottom:24px;">
+    <div style="font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;margin-bottom:12px;">FINISH TOOLS</div>
+    <h1 style="font-size:24px;font-weight:300;letter-spacing:-0.5px;margin-bottom:6px;">Finish Analysis Report</h1>
+    <p style="font-size:13px;color:#a3a3a3;margin-bottom:6px;">${now}</p>
+    ${anchorCol ? `<p style="font-size:13px;color:#525252;margin-bottom:4px;"><span style="font-weight:600;color:#0a0a0a;">Anchor:</span> ${escHtml(anchorCol)}</p>` : ''}
+    <p style="font-size:13px;color:#525252;line-height:1.7;"><span style="font-weight:600;color:#0a0a0a;">Sub-groups:</span> ${subCols.map(c => `<span style="display:inline-block;padding:2px 8px;margin:2px 4px 2px 0;background:#fafafa;border:1px solid #e5e5e5;border-radius:3px;font-size:11px;font-family:monospace;">${escHtml(shortColName(c))}</span>`).join('')}</p>
+</div>
+<div style="display:flex;gap:8px;margin-bottom:20px;">
+    <button onclick="document.querySelectorAll('.gb').forEach(b=>{b.style.display='block';b.parentElement.querySelector('.chv').style.transform='rotate(90deg)'})" style="font-size:11px;color:#a3a3a3;cursor:pointer;background:none;border:1px solid #e5e5e5;border-radius:8px;padding:5px 12px;font-family:inherit;font-weight:500;">Expand All</button>
+    <button onclick="document.querySelectorAll('.gb').forEach(b=>{b.style.display='none';b.parentElement.querySelector('.chv').style.transform=''})" style="font-size:11px;color:#a3a3a3;cursor:pointer;background:none;border:1px solid #e5e5e5;border-radius:8px;padding:5px 12px;font-family:inherit;font-weight:500;">Collapse All</button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:28px;">
+    ${anchorCol ? `<div style="border:1px solid #e5e5e5;border-radius:8px;padding:16px;text-align:center;"><div style="font-size:28px;font-weight:700;">${totalGroups}</div><div style="font-size:10px;font-weight:600;color:#a3a3a3;text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Anchor Groups</div></div>` : ''}
+    <div style="border:1px solid #e5e5e5;border-radius:8px;padding:16px;text-align:center;"><div style="font-size:28px;font-weight:700;color:#2563eb;">${totalCombos}</div><div style="font-size:10px;font-weight:600;color:#a3a3a3;text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Unique Templates</div></div>
+    <div style="border:1px solid #e5e5e5;border-radius:8px;padding:16px;text-align:center;"><div style="font-size:28px;font-weight:700;">${totalRooms.toLocaleString()}</div><div style="font-size:10px;font-weight:600;color:#a3a3a3;text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Total Rooms</div></div>
+    ${mergedCount > 0 ? `<div style="border:1px solid #e5e5e5;border-radius:8px;padding:16px;text-align:center;"><div style="font-size:28px;font-weight:700;color:#ca8a04;">${mergedCount}</div><div style="font-size:10px;font-weight:600;color:#a3a3a3;text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Merged</div></div>` : ''}
+</div>
+${groupsHTML}
+<script>
+function toggleGroup(hdr){var b=hdr.parentElement.querySelector('.gb');var c=hdr.querySelector('.chv');if(b.style.display==='none'){b.style.display='block';c.style.transform='rotate(90deg)';}else{b.style.display='none';c.style.transform='';}}
+function toggleRooms(id){var r=document.getElementById(id);r.style.display=r.style.display==='none'?'table-row':'none';}
+<\/script>
+</body></html>`;
+
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'finish_analysis_report.html'; a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        /* BUTTONS */
+        btnBack1.addEventListener('click', () => { fileInput.value = ''; goToStage(1); });
+        btnSkipAnchor.addEventListener('click', () => {
+            anchorCol = null;
+            mergeGroups = [];
+            selectedForMerge.clear();
+            buildSubChips();
+            goToStage(3);
+        });
+        btnToSubGroups.addEventListener('click', () => { buildSubChips(); goToStage(3); });
+        btnBack2.addEventListener('click', () => goToStage(2));
+        btnAnalyze.addEventListener('click', () => { renderResults(runAnalysis()); goToStage(4); });
+        btnReset.addEventListener('click', () => {
+            csvData = []; csvHeaders = []; anchorCol = null; anchorValues = [];
+            selectedForMerge.clear(); mergeGroups = []; subCols = [];
+            analysisResults = null; fileInput.value = ''; searchBox.value = ''; goToStage(1);
+        });
+        btnReselect.addEventListener('click', () => { fileInput.value = ''; searchBox.value = ''; goToStage(2); });
+        $('btnGenerateReport').addEventListener('click', generateReport);
+        btnExportHTML.addEventListener('click', exportHTML);
+
+        /* GENERATE REPORT — multi-sheet Excel */
+        function generateReport() {
+            if (!analysisResults) return;
+            const wb = XLSX.utils.book_new();
+
+            // Style definitions
+            const headerStyle = {
+                font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+                fill: { fgColor: { rgb: '333333' } },
+                alignment: { horizontal: 'left', vertical: 'center' },
+                border: {
+                    bottom: { style: 'thin', color: { rgb: '000000' } }
+                }
+            };
+            const cellStyle = {
+                alignment: { horizontal: 'left', vertical: 'center' },
+                font: { sz: 11 }
+            };
+            const titleStyle = {
+                font: { bold: true, sz: 16, color: { rgb: '1a1a1a' } },
+                alignment: { horizontal: 'left' }
+            };
+            const sectionStyle = {
+                font: { bold: true, sz: 12, color: { rgb: '525252' } },
+                alignment: { horizontal: 'left' }
+            };
+            const labelStyle = {
+                font: { bold: true, sz: 11, color: { rgb: '525252' } },
+                alignment: { horizontal: 'left' }
+            };
+            const valueStyle = {
+                font: { sz: 11 },
+                alignment: { horizontal: 'left' }
+            };
+
+            // Helper: auto-fit column widths, style headers, add autofilter
+            function formatSheet(ws, data) {
+                const colCount = data[0].length;
+                const rowCount = data.length;
+                // Auto-fit columns — account for filter arrow + character width variance
+                const cols = [];
+                for (let c = 0; c < colCount; c++) {
+                    let maxLen = 8;
+                    data.forEach(row => {
+                        const val = String(row[c] || '');
+                        if (val.length > maxLen) maxLen = val.length;
+                    });
+                    // 1.15x multiplier for character width variance, +3 for padding/filter arrow
+                    const width = Math.ceil(maxLen * 1.15) + 3;
+                    cols.push({ wch: Math.max(12, Math.min(width, 55)) });
+                }
+                ws['!cols'] = cols;
+                // Style header row + all data cells
+                for (let c = 0; c < colCount; c++) {
+                    const headerAddr = XLSX.utils.encode_cell({ r: 0, c });
+                    if (ws[headerAddr]) ws[headerAddr].s = headerStyle;
+                    for (let r = 1; r < rowCount; r++) {
+                        const addr = XLSX.utils.encode_cell({ r, c });
+                        if (ws[addr]) {
+                            ws[addr].s = cellStyle;
+                            // Force numbers to display left-aligned
+                            if (typeof ws[addr].v === 'number') {
+                                ws[addr].t = 's';
+                                ws[addr].v = String(ws[addr].v);
+                            }
+                        }
+                    }
+                }
+                // Autofilter
+                const lastCol = XLSX.utils.encode_col(colCount - 1);
+                ws['!autofilter'] = { ref: 'A1:' + lastCol + rowCount };
+            }
+
+            // Sheet 00: Legend
+            const totalTemplates = analysisResults.reduce((s, g) => s + g.comboCount, 0);
+            const totalRoomsCount = analysisResults.reduce((s, g) => s + g.totalRooms, 0);
+            const legendData = [
+                ['FINISH ANALYSIS REPORT', ''],
+                ['', ''],
+                ['Generated', new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })],
+                ['Templates Found', String(totalTemplates)],
+                ['Total Rooms', String(totalRoomsCount)],
+                ['', ''],
+                ['SHEET GUIDE', ''],
+                ['', ''],
+                ['Sheet', 'Description'],
+                ['01 - Template List', 'Use this list to import all the finish templates to dRofus.'],
+                ['02 - Finishes to Template', 'Use to assign the finish items to the templates.'],
+                ['03 - Template Mapping', 'Use to map the templates to rooms.'],
+            ];
+            const ws0 = XLSX.utils.aoa_to_sheet(legendData);
+            ws0['!cols'] = [{ wch: 28 }, { wch: 72 }];
+            // Style the legend
+            if (ws0['A1']) ws0['A1'].s = titleStyle;
+            if (ws0['A3']) ws0['A3'].s = labelStyle;
+            if (ws0['B3']) ws0['B3'].s = valueStyle;
+            if (ws0['A4']) ws0['A4'].s = labelStyle;
+            if (ws0['B4']) ws0['B4'].s = valueStyle;
+            if (ws0['A5']) ws0['A5'].s = labelStyle;
+            if (ws0['B5']) ws0['B5'].s = valueStyle;
+            if (ws0['A7']) ws0['A7'].s = sectionStyle;
+            // Style the sheet guide table header
+            if (ws0['A9']) ws0['A9'].s = headerStyle;
+            if (ws0['B9']) ws0['B9'].s = headerStyle;
+            // Style sheet guide rows
+            for (let r = 9; r < legendData.length; r++) {
+                const a = XLSX.utils.encode_cell({ r, c: 0 });
+                const b = XLSX.utils.encode_cell({ r, c: 1 });
+                if (ws0[a]) ws0[a].s = { font: { bold: true, sz: 11 }, alignment: { horizontal: 'left' } };
+                if (ws0[b]) ws0[b].s = valueStyle;
+            }
+            XLSX.utils.book_append_sheet(wb, ws0, '00 - Legend');
+
+            // Sheet 01: Template List (Code + Template Name)
+            const finishData = [['Code', 'Template Name']];
+            analysisResults.forEach(group => {
+                group.combos.forEach((combo, cIdx) => {
+                    finishData.push([fmtCode(cIdx + 1), combo.values.filter(v => v !== '\u2014').join(', ')]);
+                });
+            });
+            const ws1 = XLSX.utils.aoa_to_sheet(finishData);
+            formatSheet(ws1, finishData);
+            XLSX.utils.book_append_sheet(wb, ws1, '01 - Template List');
+
+            // Sheet 02: Finishes to Template (Code, Template Name, Category, BIM ID, Quantity)
+            const templData = anchorCol
+                ? [['Anchor Group', 'Code', 'Template Name', 'Category', 'BIM ID', 'Quantity']]
+                : [['Code', 'Template Name', 'Category', 'BIM ID', 'Quantity']];
+            analysisResults.forEach(group => {
+                group.combos.forEach((combo, cIdx) => {
+                    const code = fmtCode(cIdx + 1);
+                    const tName = combo.values.filter(v => v !== '\u2014').join(', ');
+                    subCols.forEach((col, sIdx) => {
+                        const rawVal = combo.values[sIdx];
+                        if (rawVal === '\u2014') return;
+                        rawVal.split(',').map(s => s.trim()).filter(Boolean).forEach(part => {
+                            templData.push(anchorCol ? [group.name, code, tName, shortColName(col), part, 1] : [code, tName, shortColName(col), part, 1]);
+                        });
+                    });
+                });
+            });
+            const ws2 = XLSX.utils.aoa_to_sheet(templData);
+            formatSheet(ws2, templData);
+            XLSX.utils.book_append_sheet(wb, ws2, '02 - Finishes to Template');
+
+            // Sheet 03: Template Mapping (Code + Room Function # + Room Number)
+            const roomNumCol = csvHeaders.find(h => h.toLowerCase().includes('room') && h.toLowerCase().includes('number'))
+                || csvHeaders.find(h => h.toLowerCase().includes('room num'));
+            const roomFuncCol = csvHeaders.find(h => h.toLowerCase().includes('room') && h.toLowerCase().includes('function'))
+                || csvHeaders.find(h => h.toLowerCase().includes('function #'));
+            if (roomNumCol) {
+                const hasFunc = !!roomFuncCol;
+                const mapHeaders = hasFunc ? ['Code', 'Room Function #', 'Room Number'] : ['Code', 'Room Number'];
+                const mapData = [mapHeaders];
+                analysisResults.forEach(group => {
+                    group.combos.forEach((combo, comboIdx) => {
+                        const code = fmtCode(comboIdx + 1);
+                        combo.rooms.forEach(room => {
+                            const rn = String(room[roomNumCol] ?? '').trim();
+                            if (!rn) return;
+                            if (hasFunc) {
+                                const rf = String(room[roomFuncCol] ?? '').trim();
+                                mapData.push([code, rf, rn]);
+                            } else {
+                                mapData.push([code, rn]);
+                            }
+                        });
+                    });
+                });
+                const ws3 = XLSX.utils.aoa_to_sheet(mapData);
+                formatSheet(ws3, mapData);
+                XLSX.utils.book_append_sheet(wb, ws3, '03 - Template Mapping');
+            }
+
+            // Download
+            XLSX.writeFile(wb, 'finish_analysis_report.xlsx');
+        }
+
+        /* UTILITY */
+        function fmtCode(n) { return 'F_TYP-' + String(n).padStart(4, '0'); }
+        function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+        // Normalize verbose column names to short consistent export names
+        function shortColName(name) {
+            const n = (name || '').trim().toLowerCase();
+            if (n === 'floor finish' || n === 'floor') return 'FLOOR';
+            if (n === 'floor base' || n === 'base') return 'BASE';
+            if (n === 'wall finish' || n === 'wall') return 'WALL';
+            if (n === 'ceiling material' || n === 'ceiling mat') return 'CEILING MATERIAL';
+            if (n === 'ceiling finish') return 'CEILING FINISH';
+            return name;
+        }
+    </script>
+</body>
+
+</html>
