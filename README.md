@@ -35,8 +35,8 @@ This repo is intended to contain only public-safe artifacts.
 - Do not replace them with real project workbooks.
 - Do not add client data, project room records, or internal exports.
 
-## Notes Before Publishing
+## Maintenance Notes
 
-- Choose a license intentionally before pushing.
-- Add screenshots to the README if you want the repo to read more like a product showcase.
+- Choose a license intentionally. Right now the repo is source-visible but not licensed for reuse.
+- Add screenshots to the README later if you want the repo to read more like a product showcase.
 - If filenames or terminology change here, keep the private/source package as the historical reference.
