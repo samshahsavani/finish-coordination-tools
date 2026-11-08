@@ -2,7 +2,7 @@
 
 A suite of browser-based, local-first tools for finish coordination and room data workflows. Every tool runs entirely in the browser: no installs, no backend, and no project data leaving the user's machine.
 
-This public candidate was staged from a public-safe source package. The tools, screenshots, and sample workbooks are intentionally cleaned for GitHub and portfolio use.
+This repository is the editable source for the five public demos and their synthetic sample workbooks. The Parkin project folder holds the case study and supporting evidence.
 
 ## Repo Structure
 
@@ -39,4 +39,4 @@ This repo is intended to contain only public-safe artifacts.
 
 - Choose a license intentionally. Right now the repo is source-visible but not licensed for reuse.
 - Add screenshots to the README later if you want the repo to read more like a product showcase.
-- If filenames or terminology change here, keep the private/source package as the historical reference.
+- Regenerate the synthetic inputs with `python3 scripts/generate_sample_data.py`. Keep internal tools and real project data in their authorized workspace.
